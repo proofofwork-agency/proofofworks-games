@@ -25,6 +25,17 @@
   Voxel Island — crosshair + 8-slot hotbar, key `3` selected Stone;
   Squadfall — combat class, health 100→0→88 with respawn overlay
   shown/cleared, 7-weapon bar with lock states, kill feed ("Sable ⚔ Nyx").
+- **Studio vehicles get their real shapes (human report: "squares"):**
+  vehicle doc-parts now render via `buildVehicleMesh` groups in the editor
+  (and in textmap context), not box stand-ins. Selection machinery widened
+  to `Object3D` with recursive pick + ancestor walk; drags move the group
+  directly (vehicles aren't PartsWorld parts); the placement ghost is the
+  real mesh with cloned transparent materials (shared geometry/material
+  caches are never disposed or mutated). `vehicleStandIn` survives as the
+  box BOUNDS for placement half-height. Gate: placed car + boat in a fresh
+  draft — car has wheels/cabin/headlights, boat hull/deck/outboard;
+  click-picked the car through a child mesh; dragged it across the
+  platform; zero console errors.
 - **Touch vehicle button (closes the W3 known gap, Claude):**
   `TouchControls.setVehicle(label|null)` + a `.touch-vehicle` button that
   synthesizes the edge-triggered `'e'` press (`input.pressed`); the runtime

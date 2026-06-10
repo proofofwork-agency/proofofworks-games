@@ -15,6 +15,7 @@ import * as THREE from 'three'
 import { Renderer } from '../engine/renderer'
 import { Input } from '../engine/input'
 import { PartsWorld, behaviorFromDef, type RuntimePart } from '../engine/world'
+import { buildVehicleMesh } from '../engine/vehiclemesh'
 import { VoxelWorld } from '../engine/voxel'
 import { v3, type Vec3 } from '../engine/math'
 import { buildTextMap } from '../sdk/textmap'
@@ -108,10 +109,19 @@ const SCALE_MIN = 0.2
 const SCALE_MAX = 6
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
 
+// box BOUNDS for a vehicle (placement half-height, resize fallbacks) — the
+// VISUAL in the studio is the real buildVehicleMesh group, same as in-game
 function vehicleStandIn(type: DocVehicleType, at: Vec3, color?: string): SdkPart {
   const size = type === 'boat' ? v3(2.2, 0.8, 4.2) : type === 'plane' ? v3(2.0, 1.0, 3.6) : type === 'jetpack' ? v3(0.8, 1.1, 0.6) : v3(2.0, 1.0, 3.2)
   const paint = color ?? (type === 'boat' ? '#3b82f6' : type === 'plane' ? '#e8edf2' : type === 'jetpack' ? '#caa64b' : '#e74c3c')
   return { at: v3(at.x, at.y + size.y / 2, at.z), size, color: paint, material: 'metal' }
+}
+
+/** the real in-game vehicle mesh, positioned at the doc's `at` (bottom-center origin) */
+function vehicleVisual(type: DocVehicleType, at: Vec3, color?: string): THREE.Group {
+  const g = buildVehicleMesh(type, color)
+  g.position.set(at.x, at.y, at.z)
+  return g
 }
 
 function gravityZoneStandIn(at: Vec3, size: Vec3, gravity: number, color?: string): SdkPart {
@@ -178,15 +188,32 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   selBox.visible = false
   R.scene.add(selBox)
 
-  let ghost: THREE.Mesh | null = null
+  let ghost: THREE.Object3D | null = null
   let placeTemplate: DocPart | null = null
   let spawnPickArmed = false
+
+  // box ghosts own their geometry+material; vehicle ghosts share cached
+  // geometry (never disposed) but own their cloned transparent materials
+  function disposeGhost() {
+    if (!ghost) return
+    R.scene.remove(ghost)
+    const sharedGeo = ghost.userData.sharedGeo === true
+    ghost.traverse((o) => {
+      if (o instanceof THREE.Mesh) {
+        if (!sharedGeo) o.geometry.dispose()
+        for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.dispose()
+      }
+    })
+    ghost = null
+  }
 
   // ---------- scene sync (doc → meshes) ----------
   // doc.parts entries become selectable meshes; embedded textmap/voxel
   // sections render read-only context (edited in their own tools).
-  let editableMeshes: THREE.Mesh[] = []
-  let meshToIndex = new Map<THREE.Mesh, number>()
+  // Object3D because vehicles render as their real multi-mesh groups; picking
+  // raycasts recursively and walks up to the registered ancestor
+  let editableMeshes: THREE.Object3D[] = []
+  let meshToIndex = new Map<THREE.Object3D, number>()
   let voxels: VoxelWorld | null = null
 
   function clearWorld() {
@@ -233,7 +260,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       },
       healthPack(at) { addPart({ at, size: v3(0.9, 0.9, 0.9), color: '#37d67a', material: 'neon', collide: false }) },
       vehicle(type, at, opts = {}) {
-        addPart(vehicleStandIn(type, at, opts.color))
+        parts.group.add(vehicleVisual(type, at, opts.color))
       },
       weaponSpawn(at) { addPart({ at, size: v3(0.95, 0.4, 0.4), color: '#cfd8e3', material: 'metal', collide: false }) },
       ammoSpawn(at) { addPart({ at, size: v3(0.8, 0.55, 0.8), color: '#caa64b', material: 'metal', collide: false }) },
@@ -294,9 +321,18 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       try { contextBuilder().voxelIsland(doc.voxel) } catch (err) { console.warn('[studio] voxel render failed', err) }
     }
     const contextCount = parts.parts.length
-    // editable doc parts
+    // editable doc parts — vehicles get their real in-game meshes (geometry +
+    // materials come from shared caches, so removal never disposes them)
     for (let i = 0; i < doc.parts!.length; i++) {
-      const rp = parts.add(meshDefFor(doc.parts![i]))
+      const p = doc.parts![i]
+      if (p.kind === 'vehicle') {
+        const g = vehicleVisual(p.vehicle, v3(p.at[0], p.at[1], p.at[2]), p.color)
+        parts.group.add(g)
+        meshToIndex.set(g, i)
+        editableMeshes.push(g)
+        continue
+      }
+      const rp = parts.add(meshDefFor(p))
       meshToIndex.set(rp.mesh, i)
       editableMeshes.push(rp.mesh)
     }
@@ -521,9 +557,13 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   function pick(e: MouseEvent): number | null {
     setNdc(e)
     raycaster.setFromCamera(ndc, R.camera)
-    const hits = raycaster.intersectObjects(editableMeshes, false)
-    if (hits.length === 0) return null
-    return meshToIndex.get(hits[0].object as THREE.Mesh) ?? null
+    const hits = raycaster.intersectObjects(editableMeshes, true)
+    // a hit may be a child of a vehicle group — walk up to the registered object
+    for (let o: THREE.Object3D | null = hits[0]?.object ?? null; o; o = o.parent) {
+      const idx = meshToIndex.get(o)
+      if (idx !== undefined) return idx
+    }
+    return null
   }
 
   function groundPoint(e: MouseEvent, planeY = 0): THREE.Vector3 | null {
@@ -615,6 +655,9 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     if (rp) {
       rp.pos.x = p.at[0]; rp.pos.y = p.at[1]; rp.pos.z = p.at[2]
       rp.base = { ...rp.pos }
+    } else if (mesh) {
+      // vehicle groups aren't PartsWorld parts — move the group directly
+      mesh.position.set(p.at[0], p.at[1], p.at[2])
     }
     refreshSelectionBox()
   }
@@ -791,13 +834,36 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     armPlacement(template) {
       placeTemplate = template
       spawnPickArmed = false
-      if (ghost) { R.scene.remove(ghost); ghost.geometry.dispose(); ghost = null }
+      disposeGhost()
       if (template) {
-        const def = meshDefFor(template)
-        ghost = new THREE.Mesh(
-          new THREE.BoxGeometry(def.size.x, def.size.y, def.size.z),
-          new THREE.MeshStandardMaterial({ color: def.color ?? '#8fd0ff', transparent: true, opacity: 0.45, depthWrite: false }),
-        )
+        if (template.kind === 'vehicle') {
+          // preview the real vehicle shape; ghost.position is the box CENTER
+          // (placePoint half-height), so seat the bottom-origin mesh -half down
+          const def = meshDefFor(template)
+          const inner = buildVehicleMesh(template.vehicle, template.color)
+          inner.position.y = -(def.size?.y ?? 1) / 2
+          inner.traverse((o) => {
+            if (o instanceof THREE.Mesh) {
+              const m = (o.material as THREE.Material).clone()
+              m.transparent = true
+              m.opacity = 0.45
+              m.depthWrite = false
+              o.material = m
+              o.castShadow = false
+              o.receiveShadow = false
+            }
+          })
+          const wrap = new THREE.Group()
+          wrap.userData.sharedGeo = true
+          wrap.add(inner)
+          ghost = wrap
+        } else {
+          const def = meshDefFor(template)
+          ghost = new THREE.Mesh(
+            new THREE.BoxGeometry(def.size.x, def.size.y, def.size.z),
+            new THREE.MeshStandardMaterial({ color: def.color ?? '#8fd0ff', transparent: true, opacity: 0.45, depthWrite: false }),
+          )
+        }
         ghost.visible = false
         R.scene.add(ghost)
         domEl.style.cursor = 'copy'
