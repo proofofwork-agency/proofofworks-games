@@ -1,6 +1,11 @@
-// The Boxcade runtime: takes a GameDef from the SDK and runs it — renderer,
-// physics, camera, avatars, multiplayer, chat, HUD, build mode. One call:
+// The Boxcade runtime: takes a GameDef from the SDK and runs it. One call:
 //   const session = await runGame(def, mountEl, playerName)
+// runGame is the COMPOSITION ROOT: it builds the engine objects, wires the
+// internal runtime systems (systems/ — HUD shell, chat, pause, build mode,
+// combat HUD, all on the GameSystem lifecycle), hands games a GameContext,
+// and runs the frame loop, calling each system at its fixed point in the
+// frame. Gameplay-order-coupled subsystems (vehicles, remote avatars/LOD,
+// voxel co-build sync) stay inline here on purpose.
 
 import * as THREE from 'three'
 import { Renderer } from '../engine/renderer'
@@ -13,7 +18,7 @@ import { PartsWorld, type RuntimePart, behaviors } from '../engine/world'
 import { Avatar } from '../engine/avatar'
 import { Particles } from '../engine/fx'
 import { Net, type RemotePlayer } from '../engine/network'
-import { VoxelWorld, BLOCKS, AIR, WATER, GRASS, DIRT, STONE, SAND, WOOD, PLANK, BRICK, GLOW } from '../engine/voxel'
+import { VoxelWorld, GRASS, DIRT, STONE, SAND, WOOD, PLANK, BRICK, GLOW } from '../engine/voxel'
 import { audio } from '../engine/audio'
 import { economy } from '../engine/economy'
 import { CombatSystem, FALL_WEAPON, WEAPONS, hazardWeapon, registerWeapon, type CombatEntity } from '../engine/combat'
@@ -22,8 +27,14 @@ import { v3, vclone, type Vec3 } from '../engine/math'
 import { EventBus } from '../engine/events'
 import { attachTouchControls } from '../engine/touch'
 import { createGameStore, type GameStoreEquipped } from './store'
+import { escapeHtml } from './dom'
+import { createHudSystem } from './systems/hud'
+import { createChatSystem } from './systems/chat'
+import { createPauseSystem } from './systems/pause'
+import { createBuildModeSystem } from './systems/buildmode'
+import { createCombatHudSystem, type CombatHudSystem } from './systems/combathud'
 import '../engine/touch.css'
-import type { GameDef, GameContext, WorldBuilder, SdkPart, PartHandle, PlayerApi, HudApi, EntityApi, PhysicsConfig, EngineServices } from '../sdk'
+import type { GameDef, GameContext, WorldBuilder, SdkPart, PartHandle, PlayerApi, EntityApi, PhysicsConfig, EngineServices } from '../sdk'
 
 export interface GameSession {
   dispose(): void
@@ -75,48 +86,20 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     store: def.services?.store ?? [],
   }
 
-  // ---------- HUD scaffolding ----------
-  const hudEl = el('div', 'hud')
-  const hudTop = el('div', 'hud-top')
-  const hudCorner = el('div', 'hud-corner')
-  const hudRight = el('div', 'hud-right')
-  const toastWrap = el('div', 'toast-wrap')
-  const chatBox = el('div', 'chat-box')
-  const chatLog = el('div', 'chat-log')
-  const chatInput = document.createElement('input')
-  chatInput.className = 'chat-input'
-  chatInput.maxLength = 200
-  chatInput.placeholder = 'Say something…'
-  const chatHint = el('div', 'chat-hint')
-  chatHint.textContent = 'Press / to chat'
-  chatBox.append(chatLog, chatInput, chatHint)
-
-  const homeBtn = document.createElement('button')
-  homeBtn.className = 'hud-home'
-  homeBtn.textContent = '⬅ Boxcade'
-  homeBtn.onclick = () => { location.hash = '' }
-  hudCorner.appendChild(homeBtn)
-
-  const netChip = el('div', 'hud-chip')
-  netChip.style.fontSize = '12px'
-  hudRight.appendChild(netChip)
-  const fpsChip = el('div', 'hud-chip')
-  fpsChip.style.fontSize = '12px'
-  hudRight.appendChild(fpsChip)
-
-  hudEl.append(hudTop, hudCorner, hudRight, toastWrap, chatBox)
-  if (!services.chat) chatBox.style.display = 'none'
-  mount.appendChild(hudEl)
-
-  // loading screen
-  const loading = el('div', 'overlay-screen')
-  loading.innerHTML = `
-    <div class="overlay-card">
-      <div class="spinner"></div>
-      <h2>${escapeHtml(def.meta.name)}</h2>
-      <p>${escapeHtml(def.meta.blurb)}</p>
-    </div>`
-  mount.appendChild(loading)
+  // ---------- HUD shell + chat (internal systems) ----------
+  // chat mounts its box into hudEl right after the shell so HUD DOM order is
+  // exactly what it always was; engine deps arrive as thunks (they're created
+  // further down and only touched on user interaction)
+  const hudSys = createHudSystem(mount, def)
+  const hud = hudSys.api
+  const chatSys = createChatSystem({
+    hudEl: hudSys.hudEl,
+    enabled: services.chat,
+    playerName,
+    getInput: () => input,
+    getNet: () => net,
+    say: (text) => selfAvatar.say(text),
+  })
 
   // ---------- engine objects ----------
   let lightingPreset = 'noon'
@@ -281,8 +264,8 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
 
   // ---------- scene ----------
   const R = new Renderer(mount, lightingPreset)
-  mount.appendChild(hudEl) // keep HUD above the canvas
-  if (loading.parentElement) mount.appendChild(loading)
+  mount.appendChild(hudSys.hudEl) // keep HUD above the canvas
+  if (hudSys.loadingEl.parentElement) mount.appendChild(hudSys.loadingEl)
 
   const parts = new PartsWorld()
   R.scene.add(parts.group)
@@ -341,41 +324,6 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   let coins = 0
   let started = performance.now()
   let disposed = false
-  const hudChips = new Map<string, HTMLElement>()
-
-  const hud: HudApi = {
-    set(key, value) {
-      let chip = hudChips.get(key)
-      if (!chip) {
-        chip = el('div', 'hud-chip')
-        hudChips.set(key, chip)
-        hudTop.appendChild(chip)
-      }
-      chip.textContent = value
-    },
-    remove(key) {
-      hudChips.get(key)?.remove()
-      hudChips.delete(key)
-    },
-    toast(msg) {
-      const t = el('div', 'toast')
-      t.textContent = msg
-      toastWrap.appendChild(t)
-      setTimeout(() => t.remove(), 3200)
-    },
-    big(msg, ms = 2600) {
-      const b = el('div', 'big-msg')
-      b.textContent = msg
-      hudEl.appendChild(b)
-      setTimeout(() => b.remove(), ms)
-    },
-  }
-
-  function deathFlash() {
-    const f = el('div', 'death-flash')
-    hudEl.appendChild(f)
-    setTimeout(() => f.remove(), 600)
-  }
 
   // per-game store (GameServices.store): buy/equip creator-priced recolors
   let storeEq: GameStoreEquipped = {}
@@ -383,7 +331,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     ? createGameStore({
         gameId: def.meta.id,
         items: services.store,
-        mount: hudEl,
+        mount: hudSys.hudEl,
         toast: (m) => hud.toast(m),
         onChange: (eq) => {
           storeEq = eq
@@ -393,76 +341,16 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         onBuy: (item) => opts.onStoreBuy?.(item),
       })
     : null
-  if (gameStore) hudTop.appendChild(gameStore.button)
+  if (gameStore) hudSys.hudTop.appendChild(gameStore.button)
 
   // ---------- combat system + combat HUD ----------
   let combat: CombatSystem | null = null
-  let weaponBar: HTMLElement | null = null
-  let healthFill: HTMLElement | null = null
-  let healthNum: HTMLElement | null = null
-  let ammoNum: HTMLElement | null = null
-  let ammoIcon: HTMLElement | null = null
-  let killFeed: HTMLElement | null = null
-  let hitmarkerEl: HTMLElement | null = null
-  let respawnOverlay: HTMLElement | null = null
+  let chud: CombatHudSystem | null = null
   let selfSpawnPool: Vec3[] = [vclone(spawnPoint)]
   let scoped = false
   let viewmodel: ViewModel | null = null
-  let scopeEl: HTMLElement | null = null
-  let scopeZoomEl: HTMLElement | null = null
-
-  function updateHealth(hp: number, max: number) {
-    if (!healthFill || !healthNum) return
-    const k = Math.max(0, Math.min(1, hp / max))
-    healthFill.style.width = `${k * 100}%`
-    healthFill.style.background = k > 0.55 ? '#37d67a' : k > 0.28 ? '#ffc94d' : '#ff5d5d'
-    healthNum.textContent = String(Math.ceil(hp))
-  }
-  function addKillLine(html: string) {
-    if (!killFeed) return
-    const line = el('div', 'kill-line')
-    line.innerHTML = html
-    killFeed.appendChild(line)
-    while (killFeed.children.length > 6) killFeed.firstChild?.remove()
-    setTimeout(() => line.remove(), 6000)
-  }
-  function updateAmmoHud() {
-    if (!ammoNum || !ammoIcon || !combat) return
-    const self = combat.self
-    const w = self.weapon
-    const a = combat.infiniteAmmo ? Infinity : self.ammoOf(w)
-    ammoIcon.textContent = w.icon
-    ammoNum.textContent = a === Infinity ? '∞' : String(a)
-    ammoNum.classList.toggle('low', a !== Infinity && a <= Math.max(3, (w.ammoMax ?? 0) * 0.15))
-  }
-  function renderWeaponBar() {
-    if (!weaponBar || !combat) return
-    const self = combat.self
-    weaponBar.innerHTML = ''
-    self.weapons.forEach((wp, i) => {
-      const owned = self.owned.has(wp.id)
-      const a = combat!.infiniteAmmo ? Infinity : self.ammoOf(wp)
-      let cls = 'hot-slot weapon-slot'
-      if (i === self.weaponIdx) cls += ' sel'
-      if (!owned) cls += ' locked'
-      else if (a <= 0) cls += ' dry'
-      const slot = el('div', cls)
-      const num = el('div', 'num')
-      num.textContent = String(i + 1)
-      const icon = el('div', 'wicon')
-      icon.textContent = owned ? wp.icon : '🔒'
-      const nm = el('div', 'nm')
-      nm.textContent = wp.name
-      const am = el('div', 'ammo')
-      am.textContent = !owned ? '–' : a === Infinity ? '∞' : String(a)
-      slot.append(num, icon, nm, am)
-      weaponBar!.appendChild(slot)
-    })
-    updateAmmoHud()
-  }
 
   if (def.combat) {
-    hudEl.classList.add('combat') // shifts chat above the health bar
     combat = new CombatSystem({
       scene: R.scene,
       fx,
@@ -480,83 +368,34 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     if (def.camera === 'fp') {
       viewmodel = new ViewModel(R.camera)
       viewmodel.equip(combat.self.weapon)
-
-      // sniper scope overlay (shown while right-click zooming)
-      scopeEl = el('div', 'scope-overlay')
-      const ring = el('div', 'scope-ring')
-      const hLine = el('div', 'scope-h')
-      const vLine = el('div', 'scope-v')
-      scopeZoomEl = el('div', 'scope-zoom')
-      scopeEl.append(ring, hLine, vLine, scopeZoomEl)
-      hudEl.appendChild(scopeEl)
     }
 
-    const hbWrap = el('div', 'health-wrap')
-    const hb = el('div', 'health-bar')
-    healthFill = el('div', 'health-fill')
-    hb.appendChild(healthFill)
-    healthNum = el('div', 'health-num')
-    healthNum.textContent = '100'
-    const ammoWrap = el('div', 'ammo-wrap')
-    ammoIcon = el('div', 'ammo-icon')
-    ammoNum = el('div', 'ammo-num')
-    ammoWrap.append(ammoIcon, ammoNum)
-    hbWrap.append(healthNum, hb, ammoWrap)
-    hudEl.appendChild(hbWrap)
+    chud = createCombatHudSystem({ hudEl: hudSys.hudEl, mount, combat, fp: def.camera === 'fp' })
+    const ch = chud
 
-    weaponBar = el('div', 'hotbar weapon-bar')
-    hudEl.appendChild(weaponBar)
-    renderWeaponBar()
-
-    combat.onLoadoutChange = () => renderWeaponBar()
+    combat.onLoadoutChange = () => ch.renderWeaponBar()
     combat.onPickupToast = (msg) => hud.toast(msg)
-
-    killFeed = el('div', 'kill-feed')
-    hudEl.appendChild(killFeed)
-
-    hitmarkerEl = el('div', 'hitmarker')
-    hitmarkerEl.textContent = '✛'
-    hudEl.appendChild(hitmarkerEl)
-
-    if (def.camera === 'fp') hudEl.appendChild(el('div', 'crosshair'))
-
-    updateHealth(combat.self.health, combat.self.maxHealth)
-
     combat.onSelfDamage = (hp, max) => {
-      updateHealth(hp, max)
-      if (hp < combatLastHp) {
-        const v = el('div', 'dmg-vignette')
-        hudEl.appendChild(v)
-        setTimeout(() => v.remove(), 380)
-      }
+      ch.updateHealth(hp, max)
+      if (hp < combatLastHp) ch.damageVignette()
       combatLastHp = hp
     }
-    combat.onHitmarker = () => {
-      if (!hitmarkerEl) return
-      hitmarkerEl.classList.remove('show')
-      void hitmarkerEl.offsetWidth
-      hitmarkerEl.classList.add('show')
-    }
+    combat.onHitmarker = () => ch.hitmarker()
     combat.onSelfRespawn = () => {
-      respawnOverlay?.remove()
-      respawnOverlay = null
+      ch.hideRespawnOverlay()
       combatLastHp = combat!.self.maxHealth
     }
     combat.onKill = (info) => {
       const kn = info.killer ? info.killer.name : '☠'
       const icon = info.headshot ? '🎯' : '⚔'
-      addKillLine(`<b>${escapeHtml(kn)}</b> ${icon} ${escapeHtml(info.victim.name)}`)
+      ch.addKillLine(`<b>${escapeHtml(kn)}</b> ${icon} ${escapeHtml(info.victim.name)}`)
       if (info.killer === combat!.self) {
         const bolts = info.headshot ? 15 : 10
         economy.earn(bolts, 'kill')
         hud.set('bolts', `B$ ${economy.balance}`)
       }
       if (info.victim === combat!.self) {
-        respawnOverlay = el('div', 'overlay-screen respawn-overlay')
-        const c = el('div', 'overlay-card')
-        c.innerHTML = `<h2>💀</h2><p>Respawning…</p>`
-        respawnOverlay.appendChild(c)
-        mount.appendChild(respawnOverlay)
+        ch.showRespawnOverlay()
       }
       def.onKill?.(ctx, {
         killerId: info.killer?.id ?? null,
@@ -614,7 +453,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         return
       }
       audio.death()
-      deathFlash()
+      hudSys.deathFlash()
       fx.burst(new THREE.Vector3(char.pos.x, char.pos.y + 1, char.pos.z), {
         count: 26, colors: [selfAvatar.shirtColor, '#f2c84b', '#ffffff'], speed: 6, life: 0.8,
       })
@@ -632,21 +471,6 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       char.vel.y += v.y
       char.vel.z += v.z
     },
-  }
-
-  function addChatLine(name: string, text: string, system = false) {
-    const line = el('div', 'chat-line' + (system ? ' sys' : ''))
-    if (system) {
-      line.textContent = text
-    } else {
-      const b = document.createElement('b')
-      b.textContent = name + ': '
-      line.appendChild(b)
-      line.appendChild(document.createTextNode(text))
-    }
-    chatLog.appendChild(line)
-    while (chatLog.children.length > 8) chatLog.firstChild?.remove()
-    setTimeout(() => line.remove(), 9500)
   }
 
   const net = new Net()
@@ -712,7 +536,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       events.emit('game:celebrate', { msg })
       fx.confetti(new THREE.Vector3(char.pos.x, char.pos.y + 2.5, char.pos.z))
     },
-    systemChat(msg) { addChatLine('', msg, true) },
+    systemChat(msg) { chatSys.addLine('', msg, true) },
     addPart(d) {
       const rp = instantiatePart(d)
       return {
@@ -969,7 +793,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   net.onPlayerJoin = (p: RemotePlayer) => {
     addRemoteAvatar(p)
     hud.toast(`${p.name} joined`)
-    addChatLine('', `${p.name} joined the game`, true)
+    chatSys.addLine('', `${p.name} joined the game`, true)
   }
   net.onPlayerLeave = (p: RemotePlayer) => {
     removeRemoteAvatar(p.id)
@@ -979,14 +803,14 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       remoteVehicles.delete(p.id)
     }
     releaseClaim(p.id)
-    addChatLine('', `${p.name} left`, true)
+    chatSys.addLine('', `${p.name} left`, true)
   }
   net.onChat = (m) => {
     if (m.system) {
-      addChatLine('', m.text, true)
+      chatSys.addLine('', m.text, true)
       return
     }
-    addChatLine(m.name, m.text)
+    chatSys.addLine(m.name, m.text)
     audio.chat()
     if (m.id === net.selfId) selfAvatar.say(m.text)
     else remoteAvatars.get(m.id)?.say(m.text)
@@ -999,6 +823,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   // server arbitrates (rate/range/ledger) and broadcasts the verdicts ----
   if (combat) {
     const cb = combat
+    const ch = chud!
     cb.remoteTargets = () => [...net.remotes.values()].map((r) => ({ id: r.id, x: r.x, y: r.y, z: r.z }))
     cb.onPvpHit = (claim) => net.sendHit(claim.victimNetId, claim.damage, claim.headshot, claim.weaponName)
     net.onPvpDamage = (e) => {
@@ -1014,7 +839,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       }
     }
     net.onPvpKill = (e) => {
-      addKillLine(`<b>${escapeHtml(e.attackerName)}</b> ⚔ ${escapeHtml(e.victimName)}`)
+      ch.addKillLine(`<b>${escapeHtml(e.attackerName)}</b> ⚔ ${escapeHtml(e.victimName)}`)
       if (e.victimId === net.selfId) {
         cb.applyServerKill(e.attackerName, e.weapon)
       } else {
@@ -1074,6 +899,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     }
   }
   if (online && net.roomCode) {
+    const netChip = hudSys.netChip
     netChip.textContent = `🟢 Room ${net.roomCode} ⧉`
     netChip.style.cursor = 'pointer'
     netChip.title = 'Copy an invite link to this room'
@@ -1083,54 +909,23 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       void navigator.clipboard.writeText(invite).then(() => hud.toast('🔗 Invite link copied — friends land in this room'))
     }
   } else {
-    netChip.textContent = online ? '🟢 Online' : '⚪ Offline (solo)'
+    hudSys.netChip.textContent = online ? '🟢 Online' : '⚪ Offline (solo)'
   }
   if (!online) {
-    addChatLine('', 'Multiplayer server not found — playing solo. Run `npm run server` to go online.', true)
+    chatSys.addLine('', 'Multiplayer server not found — playing solo. Run `npm run server` to go online.', true)
   }
 
-  // ---------- chat input ----------
-  let chatOpen = false
-  function openChat() {
-    chatOpen = true
-    input.captured = true
-    chatInput.classList.add('open')
-    chatHint.style.display = 'none'
-    setTimeout(() => chatInput.focus(), 0)
-  }
-  function closeChat() {
-    chatOpen = false
-    input.captured = false
-    chatInput.value = ''
-    chatInput.classList.remove('open')
-    chatHint.style.display = ''
-    chatInput.blur()
-  }
-  chatInput.addEventListener('keydown', (e) => {
-    e.stopPropagation()
-    if (e.key === 'Enter') {
-      const text = chatInput.value.trim()
-      if (text) {
-        if (!net.sendChat(text)) {
-          addChatLine(playerName, text)
-          selfAvatar.say(text)
-        }
-      }
-      closeChat()
-    } else if (e.key === 'Escape') {
-      closeChat()
-    }
-  })
+  // global keys coordinate across the chat/pause systems, so they live here
   const globalKeys = (e: KeyboardEvent) => {
     if (disposed) return
-    if (!chatOpen && services.chat && (e.key === '/' || e.key === 'Enter')) {
+    if (!chatSys.isOpen && services.chat && (e.key === '/' || e.key === 'Enter')) {
       e.preventDefault()
-      openChat()
-    } else if (!chatOpen && (e.key === 'm' || e.key === 'M')) {
+      chatSys.open()
+    } else if (!chatSys.isOpen && (e.key === 'm' || e.key === 'M')) {
       const muted = audio.toggleMute()
       hud.toast(muted ? '🔇 Muted' : '🔊 Sound on')
-    } else if (!chatOpen && e.key === 'Escape' && !input.pointerLocked) {
-      togglePause()
+    } else if (!chatSys.isOpen && e.key === 'Escape' && !input.pointerLocked) {
+      pauseSys.toggle()
     }
   }
   document.addEventListener('keydown', globalKeys)
@@ -1143,106 +938,42 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   document.addEventListener('pointerdown', unlockAudio, { once: true })
   document.addEventListener('keydown', unlockAudio, { once: true })
 
-  // ---------- pause menu ----------
-  let pauseEl: HTMLElement | null = null
-  function togglePause() {
-    if (pauseEl) {
-      pauseEl.remove()
-      pauseEl = null
-      input.captured = chatOpen
-      return
-    }
-    input.captured = true
-    pauseEl = el('div', 'overlay-screen')
-    const card = el('div', 'overlay-card')
-    card.innerHTML = `
-      <h2>Paused</h2>
-      <p>
-        <kbd>WASD</kbd> move · <kbd>Space</kbd> jump · <kbd>R</kbd> reset ·
-        ${combat && def.camera === 'fp'
-          ? '<kbd>Click</kbd> capture mouse · hold <kbd>left-click</kbd> fire · <kbd>right-click</kbd> zoom (sniper) · <kbd>1–7</kbd>/<kbd>scroll</kbd> weapons'
-          : def.camera === 'fp'
-            ? '<kbd>Click</kbd> capture mouse · <kbd>left-click</kbd> break · <kbd>right-click</kbd> place · <kbd>1–8</kbd> blocks'
-            : 'drag the mouse (either button) to look around · <kbd>Scroll</kbd> zoom · <kbd>Shift</kbd> toggle mouse-look'}
-        · <kbd>/</kbd> chat · <kbd>M</kbd> mute
-      </p>`
-    const resume = btn('Resume', '')
-    resume.onclick = () => togglePause()
-    card.appendChild(resume)
-    if (voxels) {
-      if (opts.onSaveWorld) {
-        const saveDraftBtn = btn('💾 Save world to My Games', '')
-        saveDraftBtn.onclick = () => {
-          const msg = opts.onSaveWorld!((voxels as VoxelWorld).serialize())
-          hud.toast(typeof msg === 'string' && msg ? msg : '💾 World saved to My Games')
-          togglePause()
-        }
-        card.appendChild(saveDraftBtn)
-      }
-      const save = btn('Download world', 'ghost')
-      save.onclick = () => {
-        const blob = new Blob([(voxels as VoxelWorld).serialize()], { type: 'application/json' })
-        const a = document.createElement('a')
-        a.href = URL.createObjectURL(blob)
-        a.download = `boxcade-${def.meta.id}-world.json`
-        a.click()
-        URL.revokeObjectURL(a.href)
-      }
-      card.appendChild(save)
-    }
-    // test-play sessions (Studio/editor) leave back to where they came from
-    const returnTo = localStorage.getItem('boxcade.returnTo')
-    const home = btn(returnTo ? '⬅ Back to Studio' : 'Leave game', 'ghost')
-    home.onclick = () => {
-      if (returnTo) localStorage.removeItem('boxcade.returnTo')
-      location.hash = returnTo ?? ''
-    }
-    card.appendChild(home)
-    pauseEl.appendChild(card)
-    mount.appendChild(pauseEl)
-  }
+  // ---------- pause menu (internal system) ----------
+  const pauseSys = createPauseSystem({
+    mount,
+    input,
+    def,
+    hasCombat: !!combat,
+    toast: (m) => hud.toast(m),
+    getVoxels: () => voxels,
+    onSaveWorld: opts.onSaveWorld,
+    isChatOpen: () => chatSys.isOpen,
+  })
 
-  // ---------- build mode ----------
-  const isBuild = !!voxels && (def.camera === 'fp')
-  let hotbarSel = 0
-  let hotbarEl: HTMLElement | null = null
-  if (isBuild) {
-    const cross = el('div', 'crosshair')
-    hudEl.appendChild(cross)
-    hotbarEl = el('div', 'hotbar')
-    voxelPalette.forEach((bt, i) => {
-      const slot = el('div', 'hot-slot' + (i === 0 ? ' sel' : ''))
-      const sw = el('div', 'swatch')
-      sw.style.background = BLOCKS[bt].top
-      const num = el('div', 'num')
-      num.textContent = String(i + 1)
-      const nm = el('div', 'nm')
-      nm.textContent = BLOCKS[bt].name
-      slot.append(num, sw, nm)
-      hotbarEl!.appendChild(slot)
-    })
-    hudEl.appendChild(hotbarEl)
-  }
+  // ---------- build mode (internal system) ----------
+  const buildSys = createBuildModeSystem({
+    hudEl: hudSys.hudEl,
+    def,
+    voxels,
+    palette: voxelPalette,
+    input,
+    rig,
+    camera: R.camera,
+    char,
+    fx,
+    recordEdit: (x, y, z, t) => {
+      trackVoxelEdit(x, y, z, t)
+      net.sendEvent('voxel', [x, y, z, t])
+    },
+  })
   if (def.camera === 'fp') {
     R.renderer.domElement.addEventListener('click', () => {
-      if (!input.pointerLocked && !chatOpen && !pauseEl) input.requestPointerLock()
+      if (!input.pointerLocked && !chatSys.isOpen && !pauseSys.isOpen) input.requestPointerLock()
     })
-  }
-  function selectHotbar(i: number) {
-    if (!hotbarEl) return
-    hotbarSel = ((i % voxelPalette.length) + voxelPalette.length) % voxelPalette.length
-    Array.from(hotbarEl.children).forEach((c, j) => c.classList.toggle('sel', j === hotbarSel))
   }
 
   // controls hint (auto-hides)
-  const hint = el('div', 'controls-hint')
-  hint.innerHTML = combat && def.camera === 'fp'
-    ? '<kbd>Click</kbd> to play · <kbd>WASD</kbd> move · <kbd>Space</kbd> jump · hold <kbd>left-click</kbd> fire · <kbd>right-click</kbd> zoom · <kbd>1–7</kbd> weapons · walk over pads for guns &amp; ammo'
-    : def.camera === 'fp'
-      ? '<kbd>Click</kbd> to play · <kbd>WASD</kbd> move · <kbd>Space</kbd> jump · <kbd>left-click</kbd> break · <kbd>right-click</kbd> place · <kbd>1–8</kbd> blocks'
-      : '<kbd>WASD</kbd> move · <kbd>Space</kbd> jump · <kbd>drag mouse</kbd> to look around · <kbd>Scroll</kbd> zoom · <kbd>R</kbd> reset'
-  hudEl.appendChild(hint)
-  setTimeout(() => { hint.style.opacity = '0'; hint.style.transition = 'opacity 1s' }, 9000)
+  hudSys.mountControlsHint(!!combat)
 
   // physics → audio/fx wiring
   char.events = {
@@ -1281,10 +1012,6 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
 
   let trailT = 0
   let last = performance.now()
-  let fpsAcc = 0
-  let fpsN = 0
-  let fpsAt = 0
-  let lowFpsStreak = 0
   let raf = 0
 
   function frame(now: number) {
@@ -1318,7 +1045,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
 
     // ---- vehicles: enter/exit + drive ----
     if (driving && (selfDead || char.pos.y < killY || input.wasPressed('r'))) exitVehicle(char.pos.y < killY)
-    if (!chatOpen && !selfDead && input.wasPressed('e')) {
+    if (!chatSys.isOpen && !selfDead && input.wasPressed('e')) {
       if (driving) exitVehicle(false)
       else {
         const near = nearestVehicle(3.6)
@@ -1396,59 +1123,8 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     // R = reset (the classic platformer convention)
     if (input.wasPressed('r')) player.kill()
 
-    // hotbar keys + wheel cycling in build mode
-    if (isBuild) {
-      for (let i = 0; i < voxelPalette.length; i++) {
-        if (input.wasPressed(String(i + 1))) selectHotbar(i)
-      }
-      if (input.pointerLocked && input.wheelDelta !== 0) {
-        selectHotbar(hotbarSel + (input.wheelDelta > 0 ? 1 : -1))
-      }
-      if (voxels && input.pointerLocked) {
-        const vw = voxels as VoxelWorld
-        const eye = { x: R.camera.position.x, y: R.camera.position.y, z: R.camera.position.z }
-        if (input.lmbClicked) {
-          const hit = vw.raycast(eye, rig.lookDir(), 7)
-          if (hit && hit.y > 0) {
-            const info = BLOCKS[hit.type]
-            // digging at/below sea level next to water floods the hole —
-            // otherwise you get see-through air pockets walled by water
-            const nearWater =
-              hit.y <= vw.seaLevel &&
-              (vw.get(hit.x + 1, hit.y, hit.z) === WATER || vw.get(hit.x - 1, hit.y, hit.z) === WATER ||
-               vw.get(hit.x, hit.y, hit.z + 1) === WATER || vw.get(hit.x, hit.y, hit.z - 1) === WATER ||
-               vw.get(hit.x, hit.y + 1, hit.z) === WATER)
-            const fill = nearWater ? WATER : AIR
-            vw.set(hit.x, hit.y, hit.z, fill)
-            trackVoxelEdit(hit.x, hit.y, hit.z, fill)
-            net.sendEvent('voxel', [hit.x, hit.y, hit.z, fill])
-            audio.breakBlock()
-            fx.burst(new THREE.Vector3(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5), {
-              count: 14, colors: [info.side, info.top], speed: 3.2, life: 0.55, size: 0.28,
-            })
-          }
-        }
-        if (input.rmbClicked) {
-          const hit = vw.raycast(eye, rig.lookDir(), 7)
-          if (hit) {
-            const px = hit.x + hit.nx
-            const py = hit.y + hit.ny
-            const pz = hit.z + hit.nz
-            const cur = vw.get(px, py, pz)
-            const intersectsPlayer =
-              px + 1 > char.pos.x - char.halfW && px < char.pos.x + char.halfW &&
-              py + 1 > char.pos.y && py < char.pos.y + char.height &&
-              pz + 1 > char.pos.z - char.halfW && pz < char.pos.z + char.halfW
-            if ((cur === AIR || cur === WATER) && !intersectsPlayer && vw.inBounds(px, py, pz)) {
-              vw.set(px, py, pz, voxelPalette[hotbarSel])
-              trackVoxelEdit(px, py, pz, voxelPalette[hotbarSel])
-              net.sendEvent('voxel', [px, py, pz, voxelPalette[hotbarSel]])
-              audio.place()
-            }
-          }
-        }
-      }
-    }
+    // build mode: hotbar keys, wheel cycling, break/place edits
+    buildSys.update(ctx, dt)
 
     // voxel edits rebuild water chunks — keep fresh surfaces in the SSR list
     if (R.ssrActive && voxels) {
@@ -1460,11 +1136,12 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     // ---- combat: weapons, zoom, bots ----
     if (combat) {
       const self = combat.self
+      const ch = chud!
       // weapon switching: number keys + wheel — only weapons you actually hold
       for (let i = 0; i < self.weapons.length; i++) {
         if (input.wasPressed(String(i + 1)) && self.owned.has(self.weapons[i].id)) self.weaponIdx = i
       }
-      if (!isBuild && input.pointerLocked && input.wheelDelta !== 0) {
+      if (!buildSys.active && input.pointerLocked && input.wheelDelta !== 0) {
         const n = self.weapons.length
         const step = input.wheelDelta > 0 ? 1 : -1
         let idx = self.weaponIdx
@@ -1480,9 +1157,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       if (wantZoom !== scoped) {
         scoped = wantZoom
         if (scoped) audio.scopeIn()
-        if (scopeEl) scopeEl.classList.toggle('show', scoped)
-        if (scoped && scopeZoomEl) scopeZoomEl.textContent = `${(70 / self.weapon.zoomFov!).toFixed(1)}×`
-        hudEl.classList.toggle('scoped', scoped)
+        ch.setScoped(scoped, scoped ? `${(70 / self.weapon.zoomFov!).toFixed(1)}×` : '')
       }
       rig.sensScale = scoped ? Math.max(0.18, self.weapon.zoomFov! / 70) : 1
       const targetFov = scoped ? self.weapon.zoomFov! : 70
@@ -1492,7 +1167,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       }
 
       // hold to fire — shots trace from the eye, but visually leave the muzzle
-      if (!selfDead && rig.mode === 'fp' && input.pointerLocked && input.lmbDown && !chatOpen) {
+      if (!selfDead && rig.mode === 'fp' && input.pointerLocked && input.lmbDown && !chatSys.isOpen) {
         const eye = v3(R.camera.position.x, R.camera.position.y, R.camera.position.z)
         const muzzle = viewmodel && !scoped ? viewmodel.muzzleWorld() : undefined
         if (combat.fire(self, self.weapon, eye, rig.lookDir(), muzzle)) {
@@ -1513,7 +1188,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       // weapon changed this frame (keys, wheel, pickup or auto-switch on dry)?
       if (self.weaponIdx !== shownWeaponIdx) {
         shownWeaponIdx = self.weaponIdx
-        renderWeaponBar()
+        ch.renderWeaponBar()
         viewmodel?.equip(self.weapon)
         audio.switchWeapon()
       }
@@ -1599,27 +1274,12 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     R.render(t)
 
     // fps meter (+ reflections perf guard)
-    fpsAcc += dt
-    fpsN++
-    if (now - fpsAt > 800) {
-      const fps = fpsN / Math.max(0.001, fpsAcc)
-      fpsChip.textContent = `${Math.round(fps)} fps`
-      if (R.ssrActive) {
-        lowFpsStreak = fps < 42 ? lowFpsStreak + 1 : 0
-        if (lowFpsStreak >= 4) {
-          R.disableReflections()
-          hud.toast('⚙️ Reflections turned off to keep the game smooth')
-        }
-      }
-      fpsAt = now
-      fpsAcc = 0
-      fpsN = 0
-    }
+    hudSys.update(ctx, dt)
 
     input.endFrame()
   }
 
-  loading.remove()
+  hudSys.loadingEl.remove()
   raf = requestAnimationFrame((n) => {
     last = n
     frame(n)
@@ -1691,20 +1351,4 @@ function disposeSprite(sprite: THREE.Sprite) {
   const mat = sprite.material as THREE.SpriteMaterial
   mat.map?.dispose()
   mat.dispose()
-}
-
-// ---------- tiny DOM helpers ----------
-function el(tag: string, cls: string): HTMLElement {
-  const e = document.createElement(tag)
-  e.className = cls
-  return e
-}
-function btn(label: string, extra: string): HTMLButtonElement {
-  const b = document.createElement('button')
-  b.className = ('btn ' + extra).trim()
-  b.textContent = label
-  return b
-}
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
 }

@@ -129,11 +129,24 @@ way to make variants.
 - Engine never imports from `games/` or `runtime/`. SDK is type-glue only.
 - All assets are procedural (code) — no binary assets in the repo.
 
+## Internal runtime systems
+
+`runGame` (the composition root) delegates its HUD/chat/pause/build-mode/
+combat-HUD concerns to internal systems in `runtime/systems/`, each
+conforming to the `GameSystem` lifecycle (`{id, init?, update?, dispose?}`).
+The root still decides *when* each system updates — `buildmode` runs at its
+original mid-frame spot (before the camera rig), `hud`'s fps meter right
+after render — so extraction changed no frame ordering. Engine deps the
+systems need land via narrow constructor params (or thunks where the dep is
+created later but only touched on user interaction). Gameplay-order-coupled
+subsystems (vehicles, remote avatars/LOD, voxel co-build sync) stay inline
+in `runtime.ts` on purpose: they read and write the physics step.
+
 ## Known debt / next steps
 
-- `runtime/runtime.ts` is a large composition function; the next structural
-  step is splitting its HUD/chat/build-mode/pause concerns into internal
-  runtime systems behind the same `GameSystem` lifecycle.
+- Vehicles / remote-avatar LOD / voxel co-build sync are the next extraction
+  candidates if `runtime.ts` keeps growing — each needs a frame-position-
+  preserving seam like build mode's.
 - Server-authoritative combat (PvP) will move hit resolution behind an
   interface so local + server authority become swappable strategies.
 - Renderer post stack could expose a pass registry (insert custom passes).

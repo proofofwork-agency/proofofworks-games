@@ -1,5 +1,31 @@
 # Boxcade devlog
 
+## 2026-06-10 (late evening) — git baseline, security hardening, runtime decomposition ✅
+
+- **Git**: repo initialized; history starts at the verified W1–W6 baseline
+  (`2954946`, 87 files). `.gitignore` covers DBs, snapshots, agent state.
+- **Security hardening (automated review on the baseline commit, Claude):**
+  `validateEmbedUrl` rejects userinfo + private/loopback/link-local
+  IP-literal hosts; thumbnails must be ≤80KB png/jpeg/webp data-URIs (SVG
+  data-URIs can carry markup) — enforced at publish (field stripped), read
+  (`getGameMeta`) and render (portal allowlist regex); embed iframe gains
+  `referrerpolicy=no-referrer`. +4 tests → 168.
+- **Runtime decomposition (P3-1 + P3-2, Claude):** `runGame` shrank
+  1710→1354 lines. New `runtime/systems/` on the `GameSystem` lifecycle:
+  `hud` (shell, chips, toasts, loading, controls hint, fps meter + SSR
+  guard), `chat` (box, open/close, lines — engine deps as thunks so HUD DOM
+  order is unchanged), `pause`, `buildmode` (hotbar + break/place; updated
+  at its original mid-frame spot so edit raycasts see the same camera
+  state), `combathud` (health/ammo/weapon bar/kill feed/hitmarker/scope/
+  respawn overlay — folded in as part of the HUD concern). Composition root
+  keeps vehicles, remote LOD, and voxel co-build sync inline (physics-order
+  coupled). Pure refactor: tsc clean, 168/168, zero console errors.
+- Gate (chrome-devtools): Sky Obby — HUD chips + fps meter live, `/` chat
+  sent "decomposition smoke test" into Room JZ8W, Escape pause + Resume;
+  Voxel Island — crosshair + 8-slot hotbar, key `3` selected Stone;
+  Squadfall — combat class, health 100→0→88 with respawn overlay
+  shown/cleared, 7-weapon bar with lock states, kill feed ("Sable ⚔ Nyx").
+
 ## 2026-06-10 (evening) — Wave 2 / W5 embed + W6 scale takeover
 
 **W5 external embeds:** `embed` publish type is in the DB/API (type+url

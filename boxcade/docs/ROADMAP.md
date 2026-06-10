@@ -11,9 +11,10 @@ core loop at indie scale, browser-first.
 > implemented pending final browser smoke (interest mgmt, avatar LOD,
 > maxPlayers ≤250, bot harness). (Claude+Codex pairing over ContextRelay;
 > per-phase browser gates.)
-> Still open from Wave 1: runtime decomposition, P4-8 deploy (human),
-> accounts + server wallet, P7-2/3/6, real-device touch QA, human PvP
-> playtest. Evidence: docs/DEVLOG.md. Nothing committed to git yet.
+> Runtime decomposition (P3-1/P3-2 + combat HUD) ✅ 2026-06-10 evening.
+> Still open from Wave 1: P4-8 deploy (human), accounts + server wallet,
+> P7-2/3/6, real-device touch QA, human PvP playtest. Evidence:
+> docs/DEVLOG.md. Git history starts at the W1–W6 verified baseline.
 
 ## North star
 
@@ -111,8 +112,8 @@ the link.
 
 | ID | Task | What / why | Key files | Size | Deps |
 |---|---|---|---|---|---|
-| P3-1 | Runtime decomposition | Pay the debt `ARCHITECTURE.md` names: split the `runGame` monolith's HUD/chat/pause concerns into internal runtime systems on the `GameSystem` lifecycle. Pure refactor; all six games run identically. | `src/runtime/systems/{hud,chat,pause}.ts` (new) | L | P1-3 |
-| P3-2 | Build-mode extraction | Move the voxel build mode out of `runtime.ts` into a runtime system — the seed of the Studio's edit mode. | `src/runtime/systems/buildmode.ts` (new) | M | P3-1 |
+| P3-1 ✅ | Runtime decomposition | Pay the debt `ARCHITECTURE.md` names: split the `runGame` monolith's HUD/chat/pause concerns into internal runtime systems on the `GameSystem` lifecycle. Pure refactor; all six games run identically. DONE 2026-06-10 (+ combat HUD as part of the HUD concern). | `src/runtime/systems/{hud,chat,pause,combathud}.ts` | L | P1-3 |
+| P3-2 ✅ | Build-mode extraction | Move the voxel build mode out of `runtime.ts` into a runtime system — the seed of the Studio's edit mode. DONE 2026-06-10. | `src/runtime/systems/buildmode.ts` | M | P3-1 |
 | P3-3 | Studio session | `#/studio/{draftId}`: the runtime over a draft GameDoc in edit mode — fly camera, no death/combat. Edits are doc-ops applied incrementally to the live `PartsWorld` (full world rebuild = the always-correct fallback; worlds are small). | `src/studio/studio.ts` (new), `src/main.ts` | M | P3-1, P2-5 |
 | P3-4 | Placement + part palette | Catalog UI of parts/prefabs (all builder verbs + P2-7 interactives), ghost preview, grid snap, click-to-place → writes `DocPart`s into the draft. | `src/studio/palette.ts` (new) | L | P3-3 |
 | P3-5 | Select / transform / undo | Raycaster click-select, move / rotate-Y / resize / duplicate / delete, command-stack undo/redo over GameDoc operations (the reason edits are doc-ops, not mesh-ops). | `src/studio/tools.ts` (new) | L | P3-4 |
