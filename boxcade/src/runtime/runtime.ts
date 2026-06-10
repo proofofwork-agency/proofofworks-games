@@ -1056,6 +1056,9 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       const near = nearestVehicle(3.6)
       if (near) hud.set('vehicle', `${VEHICLE_EMOJI[near.v.type]} Press E to ${near.v.type === 'jetpack' ? 'wear the jetpack' : 'drive'}`)
       else hud.remove('vehicle')
+      touch?.setVehicle(near ? VEHICLE_EMOJI[near.v.type] : null)
+    } else if (driving) {
+      touch?.setVehicle('🚪') // tap to hop out — the touch E
     }
 
     // gravity zones scale the fall (low-g bubbles) for the player and rides

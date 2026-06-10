@@ -25,6 +25,14 @@
   Voxel Island — crosshair + 8-slot hotbar, key `3` selected Stone;
   Squadfall — combat class, health 100→0→88 with respawn overlay
   shown/cleared, 7-weapon bar with lock states, kill feed ("Sable ⚔ Nyx").
+- **Touch vehicle button (closes the W3 known gap, Claude):**
+  `TouchControls.setVehicle(label|null)` + a `.touch-vehicle` button that
+  synthesizes the edge-triggered `'e'` press (`input.pressed`); the runtime
+  syncs it from its existing vehicle-prompt branch (2 lines). Gate under
+  emulated touch (maxTouchPoints=5, constructed TouchEvents): button hidden
+  by default, lit 🚗 near the Voxel Island car, tap entered (chip "E to get
+  out", button → 🚪), tap exited. Real-device QA still owed (no touchscreen
+  on this machine).
 
 ## 2026-06-10 (evening) — Wave 2 / W5 embed + W6 scale takeover
 

@@ -5,6 +5,8 @@
 //   - a RIGHT look area -> accumulates `input.mouseDX/mouseDY`
 //   - a JUMP button -> toggles ' ' in `input.keys`
 //   - (combat + first-person only) a FIRE button -> `input.lmbDown`, ZOOM toggle -> `input.rmbDown`
+//   - a VEHICLE button (hidden until the runtime calls setVehicle) -> synthesizes
+//     the edge-triggered 'e' press, so enter/exit needs no keyboard
 //
 // All DOM lives under a `.touch-root` mounted into `host`; styles are in touch.css.
 // Nothing here touches runtime.ts — integration is a few lines elsewhere.
@@ -17,6 +19,13 @@
 import type { Input } from './input'
 
 export interface TouchControls {
+  /**
+   * Show the vehicle enter/exit button with the given label (the vehicle's
+   * emoji to board, an exit glyph while driving), or hide it with null.
+   * The runtime calls this every frame from its vehicle-prompt logic;
+   * repeated calls with the same label are free.
+   */
+  setVehicle(label: string | null): void
   dispose(): void
 }
 
@@ -81,6 +90,9 @@ export function attachTouchControls(
 
   const jumpBtn = makeButton('touch-btn touch-jump', '⤒', 'Jump')
 
+  // hidden until the runtime reports a boardable vehicle / an active ride
+  const vehicleBtn = makeButton('touch-btn touch-vehicle', '🚗', 'Enter or exit vehicle')
+
   let fireBtn: HTMLButtonElement | null = null
   let zoomBtn: HTMLButtonElement | null = null
   if (showCombat) {
@@ -91,6 +103,7 @@ export function attachTouchControls(
   ui.appendChild(joyBase)
   if (fireBtn) ui.appendChild(fireBtn)
   if (zoomBtn) ui.appendChild(zoomBtn)
+  ui.appendChild(vehicleBtn)
   ui.appendChild(jumpBtn)
 
   root.appendChild(lookLayer)
@@ -281,6 +294,26 @@ export function attachTouchControls(
     () => input.keys.delete(' '),
   )
 
+  // Vehicle enter/exit: one synthesized edge-press of 'e' per tap — exactly
+  // what the runtime's vehicle logic polls for; Input.endFrame clears it.
+  bindHold(
+    vehicleBtn,
+    () => input.pressed.add('e'),
+    () => { /* edge press — nothing to release */ },
+  )
+
+  let vehicleLabel: string | null = null
+  function setVehicle(label: string | null) {
+    if (label === vehicleLabel) return
+    vehicleLabel = label
+    if (label) {
+      vehicleBtn.textContent = label
+      vehicleBtn.classList.add('on')
+    } else {
+      vehicleBtn.classList.remove('on')
+    }
+  }
+
   if (fireBtn) {
     bindHold(
       fireBtn,
@@ -313,7 +346,7 @@ export function attachTouchControls(
     root.remove()
   }
 
-  return { dispose }
+  return { setVehicle, dispose }
 }
 
 function makeButton(className: string, label: string, aria: string): HTMLButtonElement {
