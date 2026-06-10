@@ -15,7 +15,7 @@ import type { CombatConfig, WeaponDef } from '../engine/combat'
 import type { Rule } from './rules'
 import { RULE_TRIGGER_TYPES, RULE_ACTION_TYPES } from './rules'
 
-export const GAMEDOC_VERSION = 1
+export const GAMEDOC_VERSION = 2
 
 /** compact JSON vector: [x, y, z] */
 export type DocV3 = [number, number, number]
@@ -44,6 +44,19 @@ export interface GameDocMeta {
   thumb?: string
 }
 
+export type StudioGameMode = 'custom' | 'obby' | 'arena' | 'waves' | 'ctf' | 'royale'
+
+export interface GameDocStudio {
+  /** editor metadata schema; ignored by runtime */
+  schema?: 1
+  /** visual Studio mode builder preset */
+  mode?: StudioGameMode
+  /** mode-specific controls, validated by Studio mode builders */
+  settings?: Record<string, unknown>
+  /** true when Studio owns/regenerates doc.script from mode settings */
+  scriptManaged?: boolean
+}
+
 interface DocPartCommon {
   id?: string
   tag?: string
@@ -65,7 +78,7 @@ export type DocPart =
     })
   | (DocPartCommon & { kind: 'coin' | 'healthPack' | 'ammoSpawn'; at: DocV3 })
   | (DocPartCommon & { kind: 'tree' | 'cloud'; at: DocV3; scale?: number })
-  | (DocPartCommon & { kind: 'lava' | 'winPad'; at: DocV3; size?: DocV3 })
+  | (DocPartCommon & { kind: 'lava' | 'water' | 'winPad'; at: DocV3; size?: DocV3 })
   | (DocPartCommon & { kind: 'checkpoint'; at: DocV3; index?: number; size?: DocV3 })
   | (DocPartCommon & { kind: 'bouncePad'; at: DocV3; power?: number; size?: DocV3 })
   | (DocPartCommon & { kind: 'weaponSpawn'; at: DocV3; weapon: string })
@@ -74,6 +87,7 @@ export type DocPart =
   | (DocPartCommon & { kind: 'light'; at: DocV3; color?: string; intensity?: number; range?: number })
   | (DocPartCommon & { kind: 'vehicle'; at: DocV3; vehicle: DocVehicleType; speed?: number; fuel?: number; color?: string })
   | (DocPartCommon & { kind: 'gravityZone'; at: DocV3; size: DocV3; gravity: number; color?: string })
+  | (DocPartCommon & { kind: 'ladder'; at: DocV3; size?: DocV3; color?: string; rotY?: number })
   // interactive prefabs — sugar over 'part', pre-wired for rules. rotY is a
   // VISUAL-ONLY yaw (radians): these kinds place their primary slab via w.add,
   // so the mesh rotates, but collision stays axis-aligned (engine AABB).
@@ -84,9 +98,10 @@ export type DocPart =
   | (DocPartCommon & { kind: 'portal'; at: DocV3; target: string; label?: string; size?: DocV3; color?: string; rotY?: number })
 
 export const DOC_PART_KINDS = [
-  'part', 'coin', 'healthPack', 'ammoSpawn', 'tree', 'cloud', 'lava', 'winPad',
+  'part', 'coin', 'healthPack', 'ammoSpawn', 'tree', 'cloud', 'lava', 'water', 'winPad',
   'checkpoint', 'bouncePad', 'weaponSpawn', 'spinnerHazard', 'label', 'light',
   'vehicle', 'gravityZone', 'button', 'door', 'mover', 'portal',
+  'ladder',
 ] as const
 
 const DOC_VEHICLE_TYPES = ['car', 'jetpack', 'boat', 'plane'] as const
@@ -122,6 +137,13 @@ export interface GameDoc {
    * and inherits `weapons`/`combat`/`physics`/`lighting` when it omits them.
    */
   levels?: GameDoc[]
+  /** editor-only metadata used by advanced Studio mode builders */
+  studio?: GameDocStudio
+  /**
+   * creator script, executed only by the sandboxed ScriptSystem and only after
+   * the shell grants script permission for the current document.
+   */
+  script?: string
 }
 
 /** the grammar a portal/`goTo` target must match (one of four forms):
@@ -154,6 +176,8 @@ export const GAMEDOC_LIMITS = {
   storeItemPrice: 500,
   levels: 8,
   maxPlayers: 250,
+  script: 64 * 1024,
+  studioSettings: 16 * 1024,
 } as const
 
 // ------------------------------------------------------------ validate ----
@@ -168,8 +192,10 @@ export interface GameDocValidation {
 
 const TOP_FIELDS = new Set([
   'boxcade', 'v', 'meta', 'maxPlayers', 'camera', 'physics', 'lighting', 'killY', 'spawn',
-  'rtReflections', 'combat', 'services', 'weapons', 'textmap', 'parts', 'voxel', 'rules', 'vars', 'levels',
+  'rtReflections', 'combat', 'services', 'weapons', 'textmap', 'parts', 'voxel', 'rules', 'vars', 'levels', 'studio', 'script',
 ])
+
+const STUDIO_MODES: readonly StudioGameMode[] = ['custom', 'obby', 'arena', 'waves', 'ctf', 'royale']
 
 export function validateGameDoc(input: unknown): GameDocValidation {
   const errors: string[] = []
@@ -353,9 +379,20 @@ function validateDocBody(
     } else if (d.levels.length > GAMEDOC_LIMITS.levels) {
       err(`too many levels (${d.levels.length}, max ${GAMEDOC_LIMITS.levels})`)
     } else {
+      if (d.v === 1 && d.levels.some((lv) => typeof (lv as Record<string, unknown>)?.script === 'string' && ((lv as Record<string, unknown>).script as string).trim())) {
+        err('script requires GameDoc v2')
+      }
       d.levels.forEach((lv, i) => validateLevel(lv, `levels[${i}]`, err, warn))
     }
   }
+
+  if (d.script !== undefined) {
+    if (typeof d.script !== 'string') err(`${pathPrefix}script must be a string`)
+    else if (d.script.length > GAMEDOC_LIMITS.script) err(`${pathPrefix}script too large (max ${GAMEDOC_LIMITS.script} chars)`)
+    else if (!isLevel && d.script.trim() && d.v === 1) err('script requires GameDoc v2')
+  }
+
+  if (d.studio !== undefined) validateStudio(d.studio, `${pathPrefix}studio`, err)
 }
 
 /** validate a meta object (shared by the top-level doc and per-level metas). */
@@ -386,6 +423,32 @@ function validateServices(input: unknown, path: string, err: (m: string) => void
     } else {
       const ids = new Set<string>()
       services.store.forEach((item, i) => validateStoreItem(item, `${path}.store[${i}]`, ids, err))
+    }
+  }
+}
+
+function validateStudio(input: unknown, path: string, err: (m: string) => void) {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) return err(`${path} must be an object`)
+  const studio = input as Record<string, unknown>
+  if (studio.schema !== undefined && studio.schema !== 1) err(`${path}.schema must be 1`)
+  if (studio.mode !== undefined && !(STUDIO_MODES as readonly unknown[]).includes(studio.mode)) {
+    err(`${path}.mode must be custom, obby, arena, waves, ctf, or royale`)
+  }
+  if (studio.scriptManaged !== undefined && typeof studio.scriptManaged !== 'boolean') {
+    err(`${path}.scriptManaged must be true/false`)
+  }
+  if (studio.settings !== undefined) {
+    if (typeof studio.settings !== 'object' || studio.settings === null || Array.isArray(studio.settings)) {
+      err(`${path}.settings must be an object`)
+    } else {
+      try {
+        const json = JSON.stringify(studio.settings)
+        if (json.length > GAMEDOC_LIMITS.studioSettings) {
+          err(`${path}.settings too large (max ${GAMEDOC_LIMITS.studioSettings} chars)`)
+        }
+      } catch {
+        err(`${path}.settings must be JSON-serializable`)
+      }
     }
   }
 }
@@ -428,9 +491,9 @@ function validatePart(p: unknown, path: string, err: (m: string) => void, warn: 
   if (part.tag !== undefined && (typeof part.tag !== 'string' || part.tag.length > GAMEDOC_LIMITS.ref)) err(`${path}: bad tag`)
 
   // rotY — optional visual yaw (radians). Honored only for kinds placed via a
-  // single w.add slab (part, door, mover, button, portal); the interpreter
+  // single w.add slab (part, door, mover, button, portal, ladder); the interpreter
   // ignores it on prefab-verb kinds. Collision stays axis-aligned regardless.
-  if ((kind === 'part' || kind === 'door' || kind === 'mover' || kind === 'button' || kind === 'portal')
+  if ((kind === 'part' || kind === 'door' || kind === 'mover' || kind === 'button' || kind === 'portal' || kind === 'ladder')
       && part.rotY !== undefined && !isNum(part.rotY)) {
     err(`${path}: rotY must be a number (radians)`)
   }
@@ -456,7 +519,7 @@ function validatePart(p: unknown, path: string, err: (m: string) => void, warn: 
     if (!isV3(part.size)) err(`${path}: mover needs size [x,y,z]`)
     if (!isV3(part.by)) err(`${path}: mover needs by [x,y,z] (patrol offset)`)
   }
-  if ((kind === 'button' || kind === 'door') && part.size !== undefined && !isV3(part.size)) {
+  if ((kind === 'button' || kind === 'door' || kind === 'ladder') && part.size !== undefined && !isV3(part.size)) {
     err(`${path}: size must be [x, y, z]`)
   }
   if (kind === 'label') {
@@ -488,7 +551,7 @@ function validatePart(p: unknown, path: string, err: (m: string) => void, warn: 
     }
     if (part.size !== undefined && !isV3(part.size)) err(`${path}: size must be [x, y, z]`)
   }
-  if ((kind === 'lava' || kind === 'winPad' || kind === 'checkpoint' || kind === 'bouncePad') && part.size !== undefined && !isV3(part.size)) {
+  if ((kind === 'lava' || kind === 'water' || kind === 'winPad' || kind === 'checkpoint' || kind === 'bouncePad') && part.size !== undefined && !isV3(part.size)) {
     err(`${path}: size must be [x, y, z]`)
   }
 }
@@ -646,9 +709,9 @@ function validateSize(v: unknown, owner: string, err: (m: string) => void) {
 // ------------------------------------------------------------- migrate ----
 
 /**
- * Linear migration chain. v1 is current; when v2 lands, add a `1 → 2` step
- * here and bump GAMEDOC_VERSION. validateGameDoc() has already rejected
- * versions newer than this build.
+ * Linear migration chain. v2 is current; v1 docs are still accepted because
+ * the v2 addition (`script`) is optional. validateGameDoc() has already
+ * rejected versions newer than this build.
  */
 export function migrateGameDoc(doc: GameDoc): GameDoc {
   let d = doc

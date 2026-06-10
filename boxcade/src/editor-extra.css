@@ -106,8 +106,20 @@
 .fp-head { display: flex; align-items: center; gap: 8px; }
 .fp-title { font-size: 14px; font-weight: 700; color: var(--text); }
 .fp-close { margin-left: auto; }
+.fp-text-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  color: var(--text); font-size: 12px; font-weight: 700;
+}
 .fp-side .ed-fields { display: flex; flex-direction: column; gap: 6px; }
 .fp-side .ed-select { width: 100%; }
+.fp-elements[hidden] { display: none; }
+.fp-element-group {
+  color: #718197; font-size: 11px; font-weight: 700; margin: 8px 0 2px;
+}
+.fp-element-icon {
+  width: 18px; height: 18px; flex-shrink: 0; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 15px;
+}
 
 /* the grid lives in a scrollable wrap so big maps pan/scroll instead of
  * shrinking; Space-drag and middle-drag set the grab/grabbing cursor */

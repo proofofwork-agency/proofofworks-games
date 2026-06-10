@@ -1,10 +1,10 @@
 # Boxcade scripting (P7) — threat model + API design
 
-The design for **creator scripting**: the Phase 7 escape hatch from the
-logic-block ceiling. This is a design doc — **no code ships from this task**.
-It fixes the isolation model, the wire protocol, the capability surface, and
-the trust UX *before* `src/sdk/script-host.ts` (P7-2) exists. Where this doc
-and future code disagree, the code wins — file a doc fix.
+The design and implementation contract for **creator scripting**: the escape
+hatch from the logic-block ceiling. The first implementation lives in
+`src/sdk/script-host.ts`: a Worker sandbox, message-only capability API,
+watchdog, and explicit permission prompt for drafts/share links. Where this
+doc and code disagree, the code wins — file a doc fix.
 
 Read first: `docs/ROADMAP.md` (Phase 7, risk decision #2), `docs/GAMEDOC.md`
 (§5 rules, §10 non-goals), `src/sdk/rules.ts` (the vocabulary scripts exceed).

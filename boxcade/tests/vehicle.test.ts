@@ -105,16 +105,16 @@ describe('boat', () => {
 })
 
 describe('plane', () => {
-  it('cannot climb below stall speed; flies level above it', () => {
+  it('climbs while Space is held, then stops climbing when released', () => {
     const v = new Vehicle('plane', { x: 0, y: 0.01, z: 0 })
     const e = env()
-    // creep at low throttle: stays grounded
-    run(v, e, drive({ throttle: 0.2, ascend: true }), 1.5)
-    expect(v.pos.y).toBeLessThan(1)
-    // full throttle: airspeed beats stall, climb works
-    run(v, e, drive({ throttle: 1 }), 3)
-    run(v, e, drive({ throttle: 1, ascend: true }), 2)
-    expect(v.pos.y).toBeGreaterThan(8)
+    run(v, e, drive({ throttle: 1, ascend: true }), 1.5)
+    const high = v.pos.y
+    expect(high).toBeGreaterThan(8)
+    expect(v.vel.y).toBeGreaterThan(0)
+
+    run(v, e, drive({ throttle: 1 }), 1.5)
+    expect(v.vel.y).toBeLessThanOrEqual(1)
   })
 
   it('burns fuel under throttle and sinks when the tank runs dry', () => {

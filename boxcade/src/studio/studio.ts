@@ -22,15 +22,18 @@ import { buildTextMap } from '../sdk/textmap'
 import { validateGameDoc, type GameDoc, type DocPart, type DocV3, type DocVehicleType } from '../sdk/gamedoc'
 import { encodeGameDoc, SHARE_LINK_LIMIT } from '../sdk/codec'
 import { slugifyName } from '../sdk/gamedoc'
+import { gameDocToTypeScript } from '../sdk/ts-export'
 import { loadDraft, saveDraft } from '../drafts'
 import type { WorldBuilder, SdkPart } from '../sdk'
-import { buildStudioUI } from './ui'
-import { mountFloorPlan, type FloorPlanHandle } from '../editor'
+import { buildStudioUI, STUDIO_PALETTE } from './ui'
+import { mountFloorPlan, STARTER_TEXTMAP, type FloorPlanHandle } from '../editor'
 import './studio.css'
 
 export interface StudioSession {
   dispose(): void
 }
+
+export type StudioViewMode = 'build' | 'floorplan'
 
 /** the in-Studio floor-plan overlay control the top-bar button drives */
 export interface FloorPlanOverlay {
@@ -71,23 +74,25 @@ export interface StudioApi {
   getSnap(): number
   /** set the grid snap step (e.g. 0.5 or 0.1) */
   setSnap(step: number): void
+  readonly viewMode: StudioViewMode
+  setViewMode(mode: StudioViewMode): void
+  downloadTextmap(): void
+  downloadJson(): void
+  downloadTypeScript(): void
   onChange(fn: () => void): void
   /** the in-Studio 2D floor-plan overlay (the other view of this draft) */
   readonly floorPlan: FloorPlanOverlay
 }
 
-const STARTER_DOC = (): GameDoc => ({
+export const createStarterStudioDoc = (): GameDoc => ({
   boxcade: 'gamedoc',
   v: 1,
   meta: { name: 'My Studio Game', emoji: '🧱', genre: 'Obby', blurb: 'Built in the Boxcade Studio.' },
   camera: 'orbit',
   lighting: 'noon',
   spawn: [0, 2.6, 6],
-  parts: [
-    { kind: 'part', at: [0, 0.5, 0], size: [18, 1, 18], color: '#6cc04a', material: 'grass' },
-    { kind: 'coin', at: [3, 2.4, -2] },
-    { kind: 'winPad', at: [0, 1.3, -6], size: [4, 0.6, 4] },
-  ],
+  textmap: STARTER_TEXTMAP,
+  parts: [],
   rules: [],
 })
 
@@ -96,10 +101,10 @@ const snap = (n: number, alt: boolean) => (alt ? n : Math.round(n / SNAP) * SNAP
 
 // kinds whose mesh carries a visual rotY (door/mover/button/portal place via a
 // single w.add slab in the interpreter; collision stays axis-aligned)
-const KINDS_WITH_ROTY = new Set<DocPart['kind']>(['part', 'door', 'mover', 'button', 'portal'])
+const KINDS_WITH_ROTY = new Set<DocPart['kind']>(['part', 'door', 'mover', 'button', 'portal', 'ladder'])
 // kinds that carry a box `size` (some optional, defaulted by meshDefFor)
 const KINDS_WITH_SIZE = new Set<DocPart['kind']>(
-  ['part', 'door', 'mover', 'lava', 'winPad', 'checkpoint', 'bouncePad', 'button', 'portal', 'gravityZone'],
+  ['part', 'door', 'mover', 'lava', 'water', 'winPad', 'checkpoint', 'bouncePad', 'button', 'portal', 'gravityZone', 'ladder'],
 )
 const ROT_STEP = Math.PI / 8 // 22.5° per [ or ] press
 const SCALE_STEP = 1.15 // grow/shrink factor per + or - press
@@ -135,7 +140,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
 
   // ---------- document ----------
   let draftKey = draftKeyIn ?? ''
-  let doc: GameDoc = (draftKeyIn && loadDraft(draftKeyIn)) || STARTER_DOC()
+  let doc: GameDoc = (draftKeyIn && loadDraft(draftKeyIn)) || createStarterStudioDoc()
   if (!draftKeyIn) {
     draftKey = saveDraft(null, doc)
     history.replaceState(null, '', `#/studio/${draftKey}`)
@@ -146,6 +151,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   const undoStack: string[] = []
   const redoStack: string[] = []
   let disposed = false
+  let viewMode: StudioViewMode = wantFloorPlan ? 'floorplan' : 'build'
 
   // ---------- DOM scaffold ----------
   app.className = ''
@@ -163,6 +169,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   floorPlanHost.hidden = true
   shell.appendChild(floorPlanHost)
   app.appendChild(shell)
+  shell.classList.toggle('floorplan-mode', viewMode === 'floorplan')
 
   // ---------- engine ----------
   const R = new Renderer(viewport, doc.lighting ?? 'noon')
@@ -295,6 +302,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       case 'tree': return { at: v3(at.x, at.y + 1.8, at.z), size: v3(2.4 * (p.scale ?? 1), 4 * (p.scale ?? 1), 2.4 * (p.scale ?? 1)), color: '#3f9e35', material: 'grass' }
       case 'cloud': return { at, size: v3(7 * (p.scale ?? 1), 1.6 * (p.scale ?? 1), 4 * (p.scale ?? 1)), color: '#ffffff' }
       case 'lava': return { at, size: p.size ? v3(...p.size) : v3(2, 1, 2), color: '#ff5a1f', material: 'lava' }
+      case 'water': return { at, size: p.size ? v3(...p.size) : v3(8, 1, 8), color: '#2f81f7', material: 'water', collide: false, reflect: true }
       case 'winPad': return { at, size: p.size ? v3(...p.size) : v3(6, 1, 6), color: '#ffc94d', material: 'gold' }
       case 'checkpoint': return { at, size: p.size ? v3(...p.size) : v3(4, 0.6, 4), color: '#39d98a', material: 'neon' }
       case 'bouncePad': return { at, size: p.size ? v3(...p.size) : v3(3, 0.7, 3), color: '#06d6a0', material: 'neon' }
@@ -304,6 +312,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       case 'light': return { at, size: v3(0.6, 0.6, 0.6), color: p.color ?? '#fff3c4', material: 'neon' }
       case 'vehicle': return vehicleStandIn(p.vehicle, at, p.color)
       case 'gravityZone': return gravityZoneStandIn(at, v3(...p.size), p.gravity, p.color)
+      case 'ladder': return { at, size: p.size ? v3(...p.size) : v3(1.4, 5, 0.25), color: p.color ?? '#c89c62', material: 'wood', rotY: p.rotY, collide: false, climbable: true }
       case 'button': return { at, size: p.size ? v3(...p.size) : v3(1.6, 0.22, 1.6), color: p.color ?? '#ffd166', material: 'neon', rotY: p.rotY }
       case 'door': return { at, size: p.size ? v3(...p.size) : v3(2, 3, 0.5), color: p.color ?? '#8a5a2b', material: p.material ?? 'wood', rotY: p.rotY }
       case 'mover': return { at, size: v3(...p.size), color: p.color ?? '#9aa0a6', material: p.material ?? 'stone', rotY: p.rotY }
@@ -490,6 +499,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   }
 
   function updateCamera(dt: number) {
+    if (viewMode === 'floorplan') return
     const pivot = orbitPivot()
 
     if (input.rmbDown) {
@@ -544,9 +554,13 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   const raycaster = new THREE.Raycaster()
   const ndc = new THREE.Vector2()
   let dragging = false
-  let dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
-  const dragOffset = new THREE.Vector3()
-  let downAt: { x: number; y: number } | null = null
+  let dragCandidate: {
+    pointerId: number
+    index: number
+    startClient: { x: number; y: number }
+    startGround: THREE.Vector3
+    startAt: DocV3
+  } | null = null
 
   function setNdc(e: MouseEvent) {
     const rect = R.renderer.domElement.getBoundingClientRect()
@@ -590,9 +604,29 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   }
 
   const domEl = R.renderer.domElement
-  const onMouseDown = (e: MouseEvent) => {
-    if (e.button !== 0 || input.captured) return
-    downAt = { x: e.clientX, y: e.clientY }
+  function moveSelectedPart(e: MouseEvent) {
+    if (!dragCandidate || selection === null) return
+    const p = doc.parts![selection]
+    const g = groundPoint(e, p.at[1])
+    if (!g) return
+    const dx = g.x - dragCandidate.startGround.x
+    const dz = g.z - dragCandidate.startGround.z
+    p.at = [snap(dragCandidate.startAt[0] + dx, e.altKey), p.at[1], snap(dragCandidate.startAt[2] + dz, e.altKey)]
+    const mesh = editableMeshes[selection]
+    const rp = parts.parts.find((x: RuntimePart) => x.mesh === mesh)
+    if (rp) {
+      rp.pos.x = p.at[0]; rp.pos.y = p.at[1]; rp.pos.z = p.at[2]
+      rp.base = { ...rp.pos }
+    } else if (mesh) {
+      // vehicle groups aren't PartsWorld parts — move the group directly
+      mesh.position.set(p.at[0], p.at[1], p.at[2])
+    }
+    refreshSelectionBox()
+  }
+
+  const onPointerDown = (e: PointerEvent) => {
+    if (viewMode === 'floorplan' || e.button !== 0 || input.captured) return
+    domEl.setPointerCapture?.(e.pointerId)
     // spawn pick mode
     if (spawnPickArmed) {
       const g = placePoint(e, 0)
@@ -622,20 +656,24 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     if (hit !== null) {
       select(hit)
       const p = doc.parts![hit]
-      dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -p.at[1])
       const g = groundPoint(e, p.at[1])
       if (g) {
-        dragOffset.set(p.at[0] - g.x, 0, p.at[2] - g.z)
-        dragging = true
-        undoStack.push(JSON.stringify(doc)) // one undo step per drag
-        redoStack.length = 0
+        dragCandidate = {
+          pointerId: e.pointerId,
+          index: hit,
+          startClient: { x: e.clientX, y: e.clientY },
+          startGround: g,
+          startAt: [...p.at] as DocV3,
+        }
       }
     } else {
       select(null)
+      try { domEl.releasePointerCapture?.(e.pointerId) } catch { /* noop */ }
     }
   }
 
-  const onMouseMove = (e: MouseEvent) => {
+  const onPointerMove = (e: PointerEvent) => {
+    if (viewMode === 'floorplan') return
     if (ghost && placeTemplate) {
       const half = (meshDefFor(placeTemplate).size?.y ?? 1) / 2
       const g = placePoint(e, half)
@@ -645,43 +683,38 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       } else ghost.visible = false
       return
     }
-    if (!dragging || selection === null) return
-    const p = doc.parts![selection]
-    const g = groundPoint(e, p.at[1])
-    if (!g) return
-    p.at = [snap(g.x + dragOffset.x, e.altKey), p.at[1], snap(g.z + dragOffset.z, e.altKey)]
-    const mesh = editableMeshes[selection]
-    const rp = parts.parts.find((x: RuntimePart) => x.mesh === mesh)
-    if (rp) {
-      rp.pos.x = p.at[0]; rp.pos.y = p.at[1]; rp.pos.z = p.at[2]
-      rp.base = { ...rp.pos }
-    } else if (mesh) {
-      // vehicle groups aren't PartsWorld parts — move the group directly
-      mesh.position.set(p.at[0], p.at[1], p.at[2])
+    if (!dragCandidate || e.pointerId !== dragCandidate.pointerId || selection !== dragCandidate.index) return
+    if (!dragging) {
+      const moved = Math.hypot(e.clientX - dragCandidate.startClient.x, e.clientY - dragCandidate.startClient.y)
+      if (moved < 5) return
+      dragging = true
+      undoStack.push(JSON.stringify(doc)) // one undo step per actual drag
+      redoStack.length = 0
     }
-    refreshSelectionBox()
+    moveSelectedPart(e)
   }
 
-  const onMouseUp = (e: MouseEvent) => {
-    if (e.button !== 0) return
+  const finishPointerDrag = (e: PointerEvent) => {
+    if (dragCandidate && e.pointerId !== dragCandidate.pointerId) return
+    try { domEl.releasePointerCapture?.(e.pointerId) } catch { /* already released */ }
     if (dragging) {
       dragging = false
-      // tiny drags = clicks; drop the undo frame we pushed if nothing moved
-      if (downAt && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 3) undoStack.pop()
-      else { scheduleSave(); emitChange() }
+      scheduleSave()
+      emitChange()
     }
-    downAt = null
+    dragCandidate = null
   }
 
-  domEl.addEventListener('mousedown', onMouseDown)
-  domEl.addEventListener('mousemove', onMouseMove)
-  document.addEventListener('mouseup', onMouseUp)
+  domEl.addEventListener('pointerdown', onPointerDown)
+  domEl.addEventListener('pointermove', onPointerMove)
+  domEl.addEventListener('pointerup', finishPointerDrag)
+  domEl.addEventListener('pointercancel', finishPointerDrag)
 
   // typing in any panel field must not fly the camera or trigger hotkeys
   const isFormEl = (t: EventTarget | null) =>
     t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement
-  const onFocusIn = (e: FocusEvent) => { if (isFormEl(e.target)) input.captured = true }
-  const onFocusOut = () => { input.captured = isFormEl(document.activeElement) }
+  const onFocusIn = (e: FocusEvent) => { if (isFormEl(e.target) || viewMode === 'floorplan') input.captured = true }
+  const onFocusOut = () => { input.captured = viewMode === 'floorplan' || isFormEl(document.activeElement) }
   document.addEventListener('focusin', onFocusIn)
   document.addEventListener('focusout', onFocusOut)
 
@@ -718,7 +751,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
 
   // ---------- keyboard ops ----------
   const onKey = (e: KeyboardEvent) => {
-    if (disposed || input.captured) return
+    if (disposed || input.captured || viewMode === 'floorplan') return
     const k = e.key.toLowerCase()
     if ((e.metaKey || e.ctrlKey) && k === 'z') {
       e.preventDefault()
@@ -777,49 +810,65 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     }
   }
 
-  // ---------- floor-plan overlay ----------
+  // ---------- floor-plan mode ----------
   // The 2D painter mounts into floorPlanHost and edits doc.textmap. Each paint
   // is a real doc-op (mutate('floorplan', …)) so the 3D view rebuilds live and
-  // undo works. While the overlay is open we capture input so studio fly-keys /
+  // undo works. While Floor Plan mode is active we capture input so studio fly-keys /
   // hotkeys stay quiet (the painter has its own Space-to-pan handling).
   let floorPlanHandle: FloorPlanHandle | null = null
   // ignore the textmap mutate we cause ourselves when refreshing the painter
   let floorPlanEcho = false
 
+  function applyViewMode() {
+    shell.classList.toggle('floorplan-mode', viewMode === 'floorplan')
+    input.captured = viewMode === 'floorplan' || isFormEl(document.activeElement)
+    emitChange()
+  }
+
   function openFloorPlan() {
-    if (floorPlanHandle) return
-    input.captured = true
+    viewMode = 'floorplan'
     floorPlanHost.hidden = false
-    floorPlanHandle = mountFloorPlan(floorPlanHost, {
-      title: '🗺 Floor plan — paint tiles; the 3D view rebuilds live behind you',
-      getTextmap: () => doc.textmap,
-      setTextmap: (src) => {
-        // the painter's mount-time sync re-serializes the same map; skip the
-        // no-op so opening the overlay doesn't create an undo frame / rebuild
-        if (src === doc.textmap) return
-        floorPlanEcho = true
-        mutate('floorplan', (d) => { d.textmap = src })
-        floorPlanEcho = false
-      },
-      onClose: () => closeFloorPlan(),
-    })
-    emitChange() // reflect the button's active (.sel) state
+    if (!floorPlanHandle) {
+      floorPlanHandle = mountFloorPlan(floorPlanHost, {
+        title: 'Floor Plan',
+        getTextmap: () => doc.textmap,
+        setTextmap: (src) => {
+          if (src === doc.textmap) return
+          floorPlanEcho = true
+          mutate('floorplan', (d) => { d.textmap = src })
+          floorPlanEcho = false
+        },
+        elements: STUDIO_PALETTE,
+        getElements: () => doc.parts ?? [],
+        addElement: (part) => {
+          mutate('floorplan-element', (d) => {
+            d.parts = d.parts ?? []
+            d.parts.push(part)
+          })
+          select(doc.parts!.length - 1)
+          api.toast('Element placed')
+        },
+        onClose: () => closeFloorPlan(),
+      })
+    }
+    applyViewMode()
   }
 
   function closeFloorPlan() {
-    if (!floorPlanHandle) return
-    floorPlanHandle.dispose()
-    floorPlanHandle = null
+    viewMode = 'build'
+    if (floorPlanHandle) {
+      floorPlanHandle.dispose()
+      floorPlanHandle = null
+    }
     floorPlanHost.hidden = true
-    input.captured = isFormEl(document.activeElement)
-    emitChange()
+    applyViewMode()
   }
 
   const floorPlan: FloorPlanOverlay = {
     open: openFloorPlan,
     close: closeFloorPlan,
-    toggle() { floorPlanHandle ? closeFloorPlan() : openFloorPlan() },
-    isOpen() { return floorPlanHandle !== null },
+    toggle() { viewMode === 'floorplan' ? closeFloorPlan() : openFloorPlan() },
+    isOpen() { return viewMode === 'floorplan' },
   }
 
   // ---------- the api ----------
@@ -828,6 +877,8 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     get draftKey() { return draftKey },
     get selection() { return selection },
     get armed() { return placeTemplate },
+    get viewMode() { return viewMode },
+    setViewMode(mode) { mode === 'floorplan' ? openFloorPlan() : closeFloorPlan() },
     mutate,
     mutateSettings,
     select,
@@ -882,7 +933,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     saveNow,
     testPlay() {
       saveNow()
-      localStorage.setItem('boxcade.returnTo', `#/studio/${draftKey}`)
+      localStorage.setItem('boxcade.returnTo', viewMode === 'floorplan' ? `#/studio/${draftKey}?floorplan=1` : `#/studio/${draftKey}`)
       location.hash = `#/play/draft/${draftKey}`
     },
     async share() {
@@ -899,6 +950,33 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       a.click()
       URL.revokeObjectURL(a.href)
       return { copied: false, tooBig: true }
+    },
+    downloadTextmap() {
+      saveNow()
+      const blob = new Blob([doc.textmap ?? ''], { type: 'text/plain' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `${slugifyName(doc.meta.name)}.txt`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    },
+    downloadJson() {
+      saveNow()
+      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `${slugifyName(doc.meta.name)}.boxcade.json`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    },
+    downloadTypeScript() {
+      saveNow()
+      const blob = new Blob([gameDocToTypeScript(doc)], { type: 'text/typescript' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `${slugifyName(doc.meta.name)}.ts`
+      a.click()
+      URL.revokeObjectURL(a.href)
     },
     setLighting(preset) {
       mutateSettings((d) => { d.lighting = preset })
@@ -986,9 +1064,10 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       if (floorPlanHandle) { floorPlanHandle.dispose(); floorPlanHandle = null }
       if (saveTimer) { clearTimeout(saveTimer); saveNow() }
       cancelAnimationFrame(raf)
-      domEl.removeEventListener('mousedown', onMouseDown)
-      domEl.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
+      domEl.removeEventListener('pointerdown', onPointerDown)
+      domEl.removeEventListener('pointermove', onPointerMove)
+      domEl.removeEventListener('pointerup', finishPointerDrag)
+      domEl.removeEventListener('pointercancel', finishPointerDrag)
       document.removeEventListener('keydown', onKey)
       document.removeEventListener('focusin', onFocusIn)
       document.removeEventListener('focusout', onFocusOut)

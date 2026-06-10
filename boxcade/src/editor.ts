@@ -24,7 +24,7 @@ import './editor-extra.css'
 import { parseTextMap, serializeTextMap, type ParsedTextMap } from './sdk/textmap'
 import {
   validateGameDoc, encodeGameDoc, slugifyName, SHARE_LINK_LIMIT,
-  type GameDoc, type Rule, type RuleAction, RULE_SOUNDS,
+  type GameDoc, type DocPart, type DocV3, type Rule, type RuleAction, RULE_SOUNDS,
 } from './sdk'
 import { saveDraft, loadDraft, listDrafts } from './drafts'
 import castleRaw from './maps/castle.txt?raw'
@@ -101,7 +101,7 @@ const GRADIENTS = [
 ]
 
 /** the starter floor the painter shows when there is no textmap yet */
-const STARTER_TEXTMAP = '@lighting noon\n\n' +
+export const STARTER_TEXTMAP = '@lighting noon\n\n' +
   Array.from({ length: 6 }, () => 'GGGGGGGGGG').join('\n') + '\n'
 
 // ---- the no-code rule vocabulary the panel exposes (a curated v0 subset) ----
@@ -161,10 +161,25 @@ export interface FloorPlanPort {
   getTextmap(): string | undefined
   /** persist an edited textmap source (host decides how: draft, doc-op, …) */
   setTextmap(src: string): void
+  /** optional placeable Studio elements shown alongside textmap tiles */
+  elements?: FloorPlanElement[]
+  /** host callback for adding one Studio element at a grid cell */
+  addElement?(part: DocPart): void
+  /** existing Studio elements to draw as top-down markers on the map */
+  getElements?(): DocPart[]
   /** the user dismissed the painter (close button / Esc) */
   onClose(): void
   /** optional label shown in the painter header (defaults to a generic one) */
   title?: string
+}
+
+export interface FloorPlanElement {
+  label: string
+  icon: string
+  group: string
+  mapChar?: string
+  mapColor?: string
+  template: DocPart
 }
 
 export interface FloorPlanHandle {
@@ -172,6 +187,28 @@ export interface FloorPlanHandle {
   dispose(): void
   /** re-read getTextmap() and repaint (e.g. after an external undo) */
   refresh(): void
+}
+
+export function floorPlanCellToWorld(cell: { r: number; c: number }, dims: { rows: number; cols: number }, cellSize: number, layerOffset: number): DocV3 {
+  return [
+    (cell.c - (dims.cols - 1) / 2) * cellSize,
+    layerOffset,
+    (cell.r - (dims.rows - 1) / 2) * cellSize,
+  ]
+}
+
+export function placeFloorPlanElement(template: DocPart, cell: { r: number; c: number }, dims: { rows: number; cols: number }, cellSize: number, layerOffset: number): DocPart {
+  const part = JSON.parse(JSON.stringify(template)) as DocPart
+  const at = floorPlanCellToWorld(cell, dims, cellSize, layerOffset)
+  part.at = [at[0], at[1] + (template.at?.[1] ?? 0), at[2]]
+  return part
+}
+
+export function floorPlanWorldToCell(at: DocV3, dims: { rows: number; cols: number }, cellSize: number): { r: number; c: number } {
+  return {
+    c: Math.round(at[0] / cellSize + (dims.cols - 1) / 2),
+    r: Math.round(at[2] / cellSize + (dims.rows - 1) / 2),
+  }
 }
 
 export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPlanHandle {
@@ -185,9 +222,12 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
 
   let activeLayer = 0
   let brush = '#'
+  let tool: 'tile' | 'element' = 'tile'
+  let activeElement: FloorPlanElement | null = null
   let painting = false
   let panning = false
   let spaceDown = false
+  let activePointer: number | null = null
   let panStart = { x: 0, y: 0, left: 0, top: 0 }
   let disposed = false
 
@@ -200,6 +240,10 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
         </div>
         <div class="ed-section">Tiles</div>
         <div class="ed-palette" id="fpPalette"></div>
+        <div class="fp-elements" id="fpElementsBlock" hidden>
+          <div class="ed-section">Elements</div>
+          <div class="ed-palette" id="fpElements"></div>
+        </div>
         <div class="ed-section">World settings</div>
         <div class="ed-fields" id="fpFields"></div>
         <select id="fpTemplate" class="ed-select">
@@ -217,10 +261,14 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
           <label>H <input id="fpH" type="number" min="4" max="120" /></label>
           <span class="ed-hint">left-drag paint · right-drag erase · Space-drag or middle-drag to pan · lower floor shows ghosted</span>
         </div>
+        <div class="fp-text-head">
+          <span>Text Mode</span>
+          <span class="ed-hint">plain map source</span>
+        </div>
         <textarea id="fpText" class="ed-text" spellcheck="false"></textarea>
         <div class="ed-sizebar">
           <button class="btn small ghost" id="fpApply">⤴ Apply text to grid</button>
-          <span class="ed-hint">the textarea IS the map file — paste any Boxcade map here</span>
+          <span class="ed-hint">paste or edit any Boxcade text map here</span>
         </div>
       </div>
     </div>`
@@ -234,6 +282,20 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
 
   // ---- palette ----
   const paletteEl = $('fpPalette')
+  const tileButtons: HTMLButtonElement[] = []
+  const elementButtons: HTMLButtonElement[] = []
+  function setTileTool(button?: HTMLButtonElement) {
+    tool = 'tile'
+    activeElement = null
+    tileButtons.forEach((x) => x.classList.toggle('sel', x === button))
+    elementButtons.forEach((x) => x.classList.remove('sel'))
+  }
+  function setElementTool(element: FloorPlanElement, button: HTMLButtonElement) {
+    tool = 'element'
+    activeElement = element
+    tileButtons.forEach((x) => x.classList.remove('sel'))
+    elementButtons.forEach((x) => x.classList.toggle('sel', x === button))
+  }
   for (const t of TILES) {
     const b = document.createElement('button')
     b.className = 'ed-tile' + (t.ch === brush ? ' sel' : '')
@@ -248,10 +310,40 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
     b.appendChild(code)
     b.onclick = () => {
       brush = t.ch
-      paletteEl.querySelectorAll('.ed-tile').forEach((x) => x.classList.remove('sel'))
-      b.classList.add('sel')
+      setTileTool(b)
     }
+    tileButtons.push(b)
     paletteEl.appendChild(b)
+  }
+
+  const elementsBlock = $('fpElementsBlock') as HTMLElement
+  const elementsEl = $('fpElements')
+  if (opts.elements?.length && opts.addElement) {
+    elementsBlock.hidden = false
+    let group = ''
+    for (const item of opts.elements) {
+      if (item.group !== group) {
+        group = item.group
+        const label = document.createElement('div')
+        label.className = 'fp-element-group'
+        label.textContent = group
+        elementsEl.appendChild(label)
+      }
+      const b = document.createElement('button')
+      b.className = 'ed-tile fp-element'
+      b.title = `Place ${item.label} on the selected floor`
+      const icon = document.createElement('span')
+      icon.className = 'fp-element-icon'
+      icon.textContent = item.icon
+      b.appendChild(icon)
+      b.append(item.label)
+      const code = document.createElement('code')
+      code.textContent = item.mapChar ?? item.label.slice(0, 1).toUpperCase()
+      b.appendChild(code)
+      b.onclick = () => setElementTool(item, b)
+      elementButtons.push(b)
+      elementsEl.appendChild(b)
+    }
   }
 
   // ---- world settings fields ----
@@ -360,6 +452,42 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
     rows[r] = line.slice(0, c) + ch + line.slice(c + 1)
   }
 
+  function sameElementKind(template: DocPart, part: DocPart) {
+    if (template.kind !== part.kind) return false
+    if (template.kind === 'vehicle' && part.kind === 'vehicle') return template.vehicle === part.vehicle
+    if (template.kind === 'weaponSpawn' && part.kind === 'weaponSpawn') return template.weapon === part.weapon
+    if (template.kind === 'part' && part.kind === 'part') {
+      return template.material === part.material && template.color === part.color
+    }
+    return true
+  }
+
+  function elementForPart(part: DocPart): FloorPlanElement | null {
+    return opts.elements?.find((item) => sameElementKind(item.template, part)) ?? null
+  }
+
+  function nearestLayerForPart(part: DocPart, element: FloorPlanElement | null) {
+    const templateY = element?.template.at?.[1] ?? 0
+    const baseY = part.at[1] - templateY
+    let best = 0
+    let bestDist = Infinity
+    for (let i = 0; i < parsed.layerOffsets.length; i++) {
+      const dist = Math.abs(parsed.layerOffsets[i] - baseY)
+      if (dist < bestDist) { best = i; bestDist = dist }
+    }
+    return best
+  }
+
+  function markerColor(part: DocPart, element: FloorPlanElement | null) {
+    if (element?.mapColor) return element.mapColor
+    const maybeColor = (part as Extract<DocPart, { color?: string }>).color
+    return maybeColor ?? '#8a5cff'
+  }
+
+  function markerChar(part: DocPart, element: FloorPlanElement | null) {
+    return (element?.mapChar ?? element?.label.slice(0, 1) ?? part.kind.slice(0, 1)).toUpperCase()
+  }
+
   // ---- canvas ----
   // big maps stay usable: the grid renders at a comfortable cell size inside an
   // overflow:auto wrap (pan/scroll), instead of shrinking tiles to fit.
@@ -408,6 +536,34 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
     for (let r = 0; r <= rows; r++) {
       g.beginPath(); g.moveTo(0, r * px); g.lineTo(cols * px, r * px); g.stroke()
     }
+
+    const drawElementMarkers = (layer: number, alpha: number) => {
+      const elements = opts.getElements?.() ?? []
+      for (const part of elements) {
+        const element = elementForPart(part)
+        if (!element && !opts.elements?.length) continue
+        if (nearestLayerForPart(part, element) !== layer) continue
+        const cell = floorPlanWorldToCell(part.at, { rows, cols }, parsed.cell || 2)
+        if (cell.r < 0 || cell.c < 0 || cell.r >= rows || cell.c >= cols) continue
+        const x = cell.c * px
+        const y = cell.r * px
+        const pad = Math.max(2, Math.floor(px * 0.12))
+        g.globalAlpha = alpha
+        g.fillStyle = markerColor(part, element)
+        g.fillRect(x + pad, y + pad, px - pad * 2, px - pad * 2)
+        g.strokeStyle = 'rgba(255,255,255,0.8)'
+        g.lineWidth = Math.max(1, Math.floor(px / 12))
+        g.strokeRect(x + pad + 0.5, y + pad + 0.5, px - pad * 2 - 1, px - pad * 2 - 1)
+        g.fillStyle = '#0a0f16'
+        g.font = `700 ${Math.max(10, px - 9)}px ui-monospace, SFMono-Regular, Menlo, monospace`
+        g.textAlign = 'center'
+        g.textBaseline = 'middle'
+        g.fillText(markerChar(part, element), x + px / 2, y + px / 2 + 0.5)
+        g.globalAlpha = 1
+      }
+    }
+    if (activeLayer > 0) drawElementMarkers(activeLayer - 1, 0.42)
+    drawElementMarkers(activeLayer, 0.95)
   }
 
   function cellFromEvent(e: MouseEvent): { r: number; c: number } | null {
@@ -427,6 +583,15 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
     queueSyncText()
   }
 
+  function placeElementAt(e: MouseEvent) {
+    if (!activeElement || !opts.addElement) return
+    const cell = cellFromEvent(e)
+    if (!cell) return
+    const part = placeFloorPlanElement(activeElement.template, cell, dims(), parsed.cell || 2, parsed.layerOffsets[activeLayer] ?? 0)
+    opts.addElement(part)
+    draw()
+  }
+
   // ---- panning (space-drag / middle-drag scrolls the canvas wrap) ----
   function startPan(e: MouseEvent) {
     panning = true
@@ -434,22 +599,38 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
     canvasWrap.classList.add('grabbing')
   }
   function doPan(e: MouseEvent) {
-    canvasWrap.scrollLeft = panStart.left - (e.clientX - panStart.x)
-    canvasWrap.scrollTop = panStart.top - (e.clientY - panStart.y)
+    const sensitivity = 0.65
+    canvasWrap.scrollLeft = panStart.left - (e.clientX - panStart.x) * sensitivity
+    canvasWrap.scrollTop = panStart.top - (e.clientY - panStart.y) * sensitivity
   }
 
-  canvas.addEventListener('mousedown', (e) => {
+  canvas.addEventListener('pointerdown', (e) => {
     e.preventDefault()
+    e.stopPropagation()
+    activePointer = e.pointerId
+    canvas.setPointerCapture?.(e.pointerId)
     // middle-mouse OR space-held → pan; never paints
     if (e.button === 1 || spaceDown) { startPan(e); return }
+    if (tool === 'element' && activeElement && e.button === 0) {
+      placeElementAt(e)
+      return
+    }
     painting = true
     paintAt(e, e.button === 2)
   })
-  canvas.addEventListener('mousemove', (e) => {
+  canvas.addEventListener('pointermove', (e) => {
+    if (activePointer !== null && e.pointerId !== activePointer) return
+    e.preventDefault()
+    e.stopPropagation()
     if (panning) { doPan(e); return }
     if (painting) paintAt(e, (e.buttons & 2) !== 0)
   })
-  const onWindowMouseUp = () => {
+  const finishPointer = (e: PointerEvent) => {
+    if (activePointer !== null && e.pointerId !== activePointer) return
+    e.preventDefault()
+    e.stopPropagation()
+    try { canvas.releasePointerCapture?.(e.pointerId) } catch { /* already released */ }
+    activePointer = null
     if (panning) {
       panning = false
       canvasWrap.classList.remove('grabbing')
@@ -459,7 +640,8 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
       sync()
     }
   }
-  window.addEventListener('mouseup', onWindowMouseUp)
+  canvas.addEventListener('pointerup', finishPointer)
+  canvas.addEventListener('pointercancel', finishPointer)
   canvas.addEventListener('contextmenu', (e) => e.preventDefault())
 
   // Space toggles the grab cursor + arms panning (without scrolling the page).
@@ -556,13 +738,16 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
     ;(e.target as HTMLSelectElement).value = ''
   }
 
-  sync()
+  normalize(parsed)
+  refreshSizeInputs()
+  renderLayerBar()
+  draw()
+  textArea.value = serializeTextMap(parsed)
 
   return {
     dispose() {
       disposed = true
       window.clearTimeout(syncTimer)
-      window.removeEventListener('mouseup', onWindowMouseUp)
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
       host.innerHTML = ''
@@ -582,6 +767,41 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
       textArea.value = serializeTextMap(parsed)
     },
   }
+}
+
+function normalizeEditorDoc(doc: GameDoc): GameDoc {
+  doc.camera = doc.camera ?? 'orbit'
+  doc.meta = doc.meta ?? { name: 'My Game' }
+  doc.meta.name = doc.meta.name || 'My Game'
+  if (!doc.meta.gradient) doc.meta.gradient = GRADIENTS[0]
+  doc.rules = doc.rules ?? []
+  if (!doc.textmap) doc.textmap = DEFAULT_MAP
+  return doc
+}
+
+/**
+ * Resolve a legacy #/editor URL to a draft key the Studio can open in
+ * Floor Plan mode. Existing drafts are returned without rewriting their
+ * GameDoc; only legacy maps / brand-new editor sessions create a draft.
+ */
+export function resolveEditorDraftKeyForStudio(hash = location.hash): string {
+  const hashQuery = hash.split('?')[1] ?? ''
+  const draftParam = new URLSearchParams(hashQuery).get('draft')
+
+  if (draftParam && loadDraft(draftParam)) {
+    localStorage.setItem(LAST_DRAFT_KEY, draftParam)
+    return draftParam
+  }
+
+  const last = localStorage.getItem(LAST_DRAFT_KEY)
+  if (last && loadDraft(last)) return last
+
+  const doc = normalizeEditorDoc(migrateLegacyOrNew())
+  const key = saveDraft(null, doc)
+  localStorage.setItem(LAST_DRAFT_KEY, key)
+  localStorage.setItem(STORE_KEY, doc.textmap ?? '')
+  localStorage.setItem(CUSTOM_MAP_KEY, doc.textmap ?? '')
+  return key
 }
 
 // ===========================================================================
@@ -618,11 +838,7 @@ export function renderEditor(app: HTMLElement): { dispose(): void } {
   if (!doc) doc = migrateLegacyOrNew()
 
   // normalize the doc's working shape (these always exist while editing)
-  doc.camera = doc.camera ?? 'orbit'
-  doc.meta = doc.meta ?? { name: 'My Game' }
-  if (!doc.meta.gradient) doc.meta.gradient = GRADIENTS[0]
-  doc.rules = doc.rules ?? []
-  if (!doc.textmap) doc.textmap = DEFAULT_MAP
+  normalizeEditorDoc(doc)
 
   let rulesCollapsed = false
 

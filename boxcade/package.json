@@ -10,6 +10,7 @@
     "client": "vite",
     "server": "node server/server.mjs",
     "bot-load": "node scripts/bot-load.mjs",
+    "scaffold:game": "node scripts/scaffold-game.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run"

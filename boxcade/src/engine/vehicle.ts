@@ -207,7 +207,8 @@ export class Vehicle implements KinematicBody {
     // throttle burns fuel; empty tank = glider
     const hasFuel = this.fuel > 0
     const throttle = hasFuel ? Math.max(0, input.throttle) : 0
-    if (throttle > 0.05) this.fuel = Math.max(0, this.fuel - dt)
+    const thrustingUp = input.ascend && hasFuel
+    if (throttle > 0.05 || thrustingUp) this.fuel = Math.max(0, this.fuel - dt)
     const brake = input.throttle < 0 && this.grounded ? input.throttle : 0
 
     const target = (throttle + brake) * this.spec.speed
@@ -222,11 +223,16 @@ export class Vehicle implements KinematicBody {
     const auth = Math.min(1, Math.abs(newFwd) / 6) * Math.sign(newFwd || 1)
     this.yaw -= input.steer * (this.grounded ? 1.2 : 1.6) * auth * dt
 
-    // lift cancels gravity above stall speed; climb/dive only with airspeed
+    // lift cancels gravity above stall speed; Space is direct climb thrust
+    // like the jetpack so holding it keeps the plane climbing until released.
     const lift = clamp01(newFwd / stall)
-    const vyTarget = lift >= 1 ? (input.ascend ? 0.42 * newFwd : input.descend ? -0.5 * newFwd : 0) : 0
-    if (lift >= 1) {
-      this.vel.y = approach(this.vel.y, vyTarget, 26 * dt)
+    if (thrustingUp) {
+      this.vel.y += 44 * dt
+      this.vel.y = Math.min(this.vel.y, 16)
+    } else if (input.descend && lift >= 0.4) {
+      this.vel.y = approach(this.vel.y, -0.55 * Math.max(newFwd, stall), 28 * dt)
+    } else if (lift >= 1) {
+      this.vel.y = approach(this.vel.y, 0, 18 * dt)
     } else {
       this.vel.y += env.gravity * (1 - lift * 0.85) * dt // stall: mush downward, partial lift softens
       this.vel.y = Math.max(this.vel.y, -30)

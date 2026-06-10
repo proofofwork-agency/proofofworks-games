@@ -13,17 +13,18 @@ document and the code disagree, the code wins — file a doc fix.
 A GameDoc is a plain JSON object marked `{ "boxcade": "gamedoc", "v": 1, … }`.
 It carries everything needed to reconstruct a game: metadata, world geometry
 (text map, voxel terrain, or explicit parts), camera/physics/lighting tuning,
-combat config, no-code `rules`, and `vars`. Nothing else is needed to play it.
+combat config, no-code `rules`, `vars`, and optional sandboxed `script`.
+Nothing else is needed to play it.
 
 Design goals:
 
 - **Game as data.** A doc is replayed through the same `WorldBuilder` verbs a
   hand-written game calls (`interpret.ts`), so doc games and code games are
   behavior-identical by construction — there is no separate "data engine".
-- **No user code.** A doc is inert data. Logic is expressed as declarative
-  `when / if / do` rules (§5), never as scripts. A malicious doc can waste your
-  CPU but cannot execute arbitrary code. This is the security boundary that lets
-  share links and community uploads be opened safely.
+- **Code is opt-in.** A doc with no `script` field is inert data: logic is
+  declarative `when / if / do` rules (§5). A scripted doc runs only after an
+  explicit permission prompt, inside the Worker sandbox described in
+  `docs/SCRIPTING.md`.
 - **One file, portable.** The whole game round-trips through a URL hash, a
   `.boxcade.json` download, or a DB row. Size caps (§6) are part of the format
   because docs live forever in those places.
@@ -46,9 +47,9 @@ Concretely, `validateGameDoc()`:
 - collects unknown top-level keys as **warnings** (`unknown field 'x' ignored`)
   and still builds. Unknown `DocPart.kind`, rule trigger types, and rule action
   types are likewise **skipped with a warning**, not fatal.
-- `migrateGameDoc()` is a linear chain: `v1` is current and the chain is a
-  no-op. When `v2` lands, add a `1 → 2` step and bump `GAMEDOC_VERSION`; the
-  validator has already rejected anything newer than the running build.
+- `migrateGameDoc()` is a linear chain: `v2` is current and the chain is a
+  no-op because the v2 addition (`script`) is optional; the validator has
+  already rejected anything newer than the running build.
 
 The name-strings rule is load-bearing: materials, weapons, tiles, sky presets,
 behaviors and rule actions are all looked up in a **registry by name** at
@@ -62,7 +63,7 @@ are optional.
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `boxcade` | `'gamedoc'` | — | Required marker. Must equal `"gamedoc"`. |
-| `v` | integer | — | Format version. Current = `1` (`GAMEDOC_VERSION`). |
+| `v` | integer | — | Format version. Current = `2` (`GAMEDOC_VERSION`). |
 | `meta` | `GameDocMeta` | — | Required. See §3.1. |
 | `camera` | `'orbit' \| 'fp'` | engine default | Orbit (third-person) or first-person rig. |
 | `physics` | `{ gravity?, jumpVel?, walkSpeed? }` | engine defaults | All members are numbers; partial objects are fine. |
@@ -76,6 +77,7 @@ are optional.
 | `voxel` | `{ data?, seed?, size?, palette? }` | none | Voxel terrain: saved `data` string, or procedural `seed`/`size`/`palette`. `size` is an integer 16–256; `palette` is an array of integer block ids. |
 | `rules` | `Rule[]` | none | No-code logic. See §5. |
 | `vars` | `Record<string, number>` | none | Named counters; each declared var gets an auto HUD chip (§5.4). |
+| `script` | string | none | Optional sandboxed creator script. Requires GameDoc v2 and explicit runtime permission. Cap: 64 KB. |
 
 ### 3.1 `meta`
 
@@ -352,12 +354,12 @@ tagged door and toasts. Valid per `gamedoc.ts` and `rules.ts`.
 }
 ```
 
-## 10. Not in v1 (deliberately)
+## 10. Deliberate limits
 
-- **No user code / scripts.** Logic is rules-only. A future, sandboxed `script`
-  section may be added behind the same forward-compat rules — it does not exist
-  yet, and `rules` is the only programmable surface today. The "no executable
-  data" property is the reason docs can be opened from untrusted links.
+- **No raw TypeScript in GameDocs.** The `script` field is plain creator
+  JavaScript executed only by the sandboxed ScriptSystem after permission is
+  granted. Full TypeScript games belong to trusted developer mode, curated
+  native inclusion, or sandboxed external embeds.
 - **No binary assets.** Everything is procedural. `meta.thumb` is a generated
   data URL, not an upload; there are no image/audio/model blobs in a doc.
 - **First-party match logic stays in TypeScript.** Complex, authoritative game

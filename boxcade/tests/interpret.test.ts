@@ -111,6 +111,38 @@ describe('castle-run GameDoc parity', () => {
 })
 
 describe('interactive prefabs through the interpreter', () => {
+  it('requires explicit permission for scripted docs', () => {
+    const doc = {
+      boxcade: 'gamedoc' as const,
+      v: 2,
+      meta: { name: 'Scripted' },
+      script: 'boxcade.toast("hi")',
+    }
+    expect(() => buildGameFromDoc(doc)).toThrow(GameDocError)
+    const def = buildGameFromDoc(doc, { allowScripts: true })
+    expect(def.systems?.map((s) => s.id)).toContain('gamedoc-script')
+  })
+
+  it('places water as a non-solid water material volume', () => {
+    const def = buildGameFromDoc({
+      boxcade: 'gamedoc',
+      v: 1,
+      meta: { name: 'Water Test' },
+      parts: [
+        { kind: 'water', at: [0, 0.4, 0], size: [8, 0.8, 8] },
+      ],
+    })
+    const rb = makeRecordingBuilder()
+    def.build(rb.builder)
+
+    expect(rb.log).toContainEqual(expect.objectContaining({
+      verb: 'add',
+      material: 'water',
+      collide: false,
+      color: '#2f81f7',
+    }))
+  })
+
   it('button + door + mover place parts and wire rules', () => {
     const def = buildGameFromDoc({
       boxcade: 'gamedoc',
@@ -254,6 +286,32 @@ describe('vehicle parts through the interpreter (W3)', () => {
       { verb: 'vehicle', type: 'plane', at: { x: 1, y: 2, z: 3 }, opts: { speed: 34, fuel: 60, color: '#e8edf2' } },
       { verb: 'vehicle', type: 'car', at: { x: -2, y: 1, z: 0 }, opts: undefined },
     ])
+  })
+})
+
+describe('ladder parts through the interpreter', () => {
+  it('places a non-solid climbable part', () => {
+    const def = buildGameFromDoc({
+      boxcade: 'gamedoc',
+      v: 1,
+      meta: { name: 'Climb' },
+      parts: [
+        { kind: 'ladder', at: [0, 2.5, -3], size: [1.4, 5, 0.25], color: '#c89c62', rotY: Math.PI / 2 },
+      ],
+    })
+    const rb = makeRecordingBuilder()
+    def.build(rb.builder)
+
+    const ladder = rb.log.find((e) => e.verb === 'add')
+    expect(ladder).toMatchObject({
+      verb: 'add',
+      at: { x: 0, y: 2.5, z: -3 },
+      size: { x: 1.4, y: 5, z: 0.25 },
+      color: '#c89c62',
+      material: 'wood',
+      collide: false,
+      climbable: true,
+    })
   })
 })
 

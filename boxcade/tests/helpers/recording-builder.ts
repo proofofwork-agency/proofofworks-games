@@ -48,6 +48,7 @@ export function makeRecordingBuilder(): RecordingBuilder {
         material: def.material,
         collide: def.collide,
         gravityZone: def.gravityZone,
+        climbable: def.climbable,
         // keep the wiring so tests can fire it (e.g. portal touch → goToGame)
         onTouch: def.onTouch,
       })

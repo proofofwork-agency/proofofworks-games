@@ -86,6 +86,8 @@ describe('validateGameDoc', () => {
     expect(bad([{ kind: 'part', at: 'nope', size: [1, 1, 1] }]).ok).toBe(false)
     expect(bad([{ kind: 'mover', at: [0, 0, 0], size: [1, 1, 1] }]).ok).toBe(false) // no by
     expect(bad([{ kind: 'part', at: [0, 0, 0], size: [1, 1, 1], color: '#fff' }]).ok).toBe(true)
+    expect(bad([{ kind: 'water', at: [0, 0, 0], size: [8, 1, 8] }]).ok).toBe(true)
+    expect(bad([{ kind: 'water', at: [0, 0, 0], size: [8, 0] }]).ok).toBe(false)
     expect(bad([{ kind: 'button', at: [0, 0, 0] }]).ok).toBe(true)
     expect(bad([{ kind: 'door', at: [0, 0, 0], tag: 'gate' }]).ok).toBe(true)
   })
@@ -151,7 +153,7 @@ describe('validateGameDoc', () => {
   })
 
   // rotY is visual-only yaw, honored for the kinds the interpreter places via a
-  // single w.add slab (door, mover, button, portal — 'part' already carried it).
+  // single w.add slab (door, mover, button, portal, ladder — 'part' already carried it).
   const withPart = (part: Record<string, unknown>) => validateGameDoc({ ...minimal(), parts: [part] })
 
   it('accepts a numeric rotY on door/mover/button/portal', () => {
@@ -159,6 +161,7 @@ describe('validateGameDoc', () => {
     expect(withPart({ kind: 'mover', at: [0, 0, 0], size: [1, 1, 1], by: [0, 2, 0], rotY: 0 }).ok).toBe(true)
     expect(withPart({ kind: 'button', at: [0, 0, 0], rotY: -1.5 }).ok).toBe(true)
     expect(withPart({ kind: 'portal', at: [0, 0, 0], target: 'home', rotY: 3.14 }).ok).toBe(true)
+    expect(withPart({ kind: 'ladder', at: [0, 2.5, 0], size: [1.4, 5, 0.25], rotY: Math.PI / 2 }).ok).toBe(true)
   })
 
   it('rejects a non-numeric rotY on door/mover/button/portal', () => {
@@ -166,6 +169,7 @@ describe('validateGameDoc', () => {
     expect(withPart({ kind: 'mover', at: [0, 0, 0], size: [1, 1, 1], by: [0, 2, 0], rotY: 'x' }).ok).toBe(false)
     expect(withPart({ kind: 'button', at: [0, 0, 0], rotY: NaN }).ok).toBe(false)
     expect(withPart({ kind: 'portal', at: [0, 0, 0], target: 'home', rotY: 'left' }).ok).toBe(false)
+    expect(withPart({ kind: 'ladder', at: [0, 0, 0], rotY: 'left' }).ok).toBe(false)
   })
 
   it('validates rule shapes', () => {
@@ -183,6 +187,29 @@ describe('validateGameDoc', () => {
   it('validates vars', () => {
     expect(validateGameDoc({ ...minimal(), vars: { score: 0, lives: 3 } }).ok).toBe(true)
     expect(validateGameDoc({ ...minimal(), vars: { score: 'high' } }).ok).toBe(false)
+  })
+
+  it('validates scripted GameDoc v2 documents', () => {
+    expect(validateGameDoc({ ...minimal(), v: 2, script: 'boxcade.toast("hi")' }).ok).toBe(true)
+    expect(validateGameDoc({ ...minimal(), script: 'boxcade.toast("hi")' }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), levels: [{ script: 'boxcade.toast("hi")' }] }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), v: 2, script: 'x'.repeat(GAMEDOC_LIMITS.script + 1) }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), v: 2, script: 42 }).ok).toBe(false)
+  })
+
+  it('validates editor-only Studio mode metadata', () => {
+    const valid = validateGameDoc({
+      ...minimal(),
+      studio: { schema: 1, mode: 'waves', settings: { baseBots: 2 }, scriptManaged: true },
+    })
+    expect(valid.ok).toBe(true)
+    expect(valid.warnings).toEqual([])
+
+    expect(validateGameDoc({ ...minimal(), studio: { mode: 'racing' } }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), studio: { schema: 2 } }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), studio: { scriptManaged: 'yes' } }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), studio: { settings: 'waves' } }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), studio: { settings: { text: 'x'.repeat(GAMEDOC_LIMITS.studioSettings + 1) } } }).ok).toBe(false)
   })
 
   it('accepts the new rule triggers and actions', () => {

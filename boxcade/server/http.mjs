@@ -115,6 +115,7 @@ function checkDoc(text) {
   if (doc?.boxcade !== 'gamedoc') return 'not a Boxcade game document'
   if (!Number.isInteger(doc.v) || doc.v < 1 || doc.v > 8) return 'bad doc version'
   if (typeof doc.meta?.name !== 'string' || !doc.meta.name.trim()) return 'game needs a name'
+  if (typeof doc.script === 'string' && doc.script.trim()) return 'scripted publishing is not enabled yet'
   if (Array.isArray(doc.parts) && doc.parts.length > 2000) return 'too many parts'
   if (Array.isArray(doc.rules) && doc.rules.length > 200) return 'too many rules'
   return null

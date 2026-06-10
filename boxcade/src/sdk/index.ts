@@ -47,7 +47,9 @@ export {
   type Rule, type RuleTrigger, type RuleCondition, type RuleAction, type RulesSystem,
 } from './rules'
 export { buildGameFromDoc, GameDocError } from './interpret'
+export { createScriptSystem } from './script-host'
 export { encodeGameDoc, decodeGameDoc, hashGameDoc, SHARE_LINK_LIMIT } from './codec'
+export { gameDocToTypeScript } from './ts-export'
 export type { Vec3, PartDef, MaterialKind, Behavior }
 
 /**

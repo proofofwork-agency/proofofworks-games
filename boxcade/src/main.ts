@@ -5,13 +5,13 @@
 //   #/play/<gameId>      built-in game (custom-map = legacy editor map)
 //   #/play/draft/<key>   a local draft from My Games
 //   #/play/d/<payload>   a shared game — the whole GameDoc rides in the link
-//   #/editor             the 2D map editor
+//   #/editor             legacy link → Studio Floor Plan
 //   #/studio[/<key>]     the 3D Studio (new draft, or edit an existing one)
 
 import './style.css'
 import { findGame } from './games'
 import { runGame, type GameSession, type RunGameOptions } from './runtime/runtime'
-import { renderEditor, CUSTOM_MAP_KEY } from './editor'
+import { CUSTOM_MAP_KEY, resolveEditorDraftKeyForStudio } from './editor'
 import { renderStudio } from './studio/studio'
 import { buildTextMap } from './sdk/textmap'
 import { decodeGameDoc, buildGameFromDoc, GameDocError, hashGameDoc } from './sdk'
@@ -163,6 +163,19 @@ function renderDocError(err: unknown) {
   document.getElementById('docErrBack')!.addEventListener('click', () => { location.hash = '' })
 }
 
+function hasScript(doc: unknown): doc is GameDoc & { script: string } {
+  return typeof doc === 'object' && doc !== null && typeof (doc as GameDoc).script === 'string' && (doc as GameDoc).script!.trim() !== ''
+}
+
+async function ensureScriptAllowed(doc: GameDoc, source: string): Promise<boolean> {
+  if (!hasScript(doc)) return false
+  const key = `boxcade.script.ok.${hashGameDoc(doc as object)}`
+  if (localStorage.getItem(key) === '1') return true
+  const ok = window.confirm(`"${doc.meta.name}" contains a creator script from ${source}.\n\nScripts run in a sandbox without DOM, storage, or network access. Run it?`)
+  if (ok) localStorage.setItem(key, '1')
+  return ok
+}
+
 /** `?room=CODE` anywhere in the hash targets a specific multiplayer room */
 function roomSuffix(): string {
   const code = location.hash.match(/[?&]room=([A-Za-z0-9]+)/)?.[1]
@@ -206,7 +219,7 @@ function handleGoTo(target: string, context: GoToContext = {}) {
  * room key (`<roomKey>-l<n>`) so level rooms don't mix. Disposes the current
  * session first and guards re-entry with `booting`, mirroring route().
  */
-async function relaunchAtLevel(doc: GameDoc, level: number, roomKey: string, opts: RunGameOptions) {
+async function relaunchAtLevel(doc: GameDoc, level: number, roomKey: string, opts: RunGameOptions, allowScripts = false) {
   if (booting) return
   // human numbering: level 1 = the root game, level n≥2 = doc.levels[n-2].
   // a target that doesn't exist must NOT relaunch the root — a root rule
@@ -218,7 +231,7 @@ async function relaunchAtLevel(doc: GameDoc, level: number, roomKey: string, opt
   booting = true
   try {
     if (session) { session.dispose(); session = null }
-    session = await runGame(buildGameFromDoc(doc, { level }), app, playerName(), {
+    session = await runGame(buildGameFromDoc(doc, { level, allowScripts }), app, playerName(), {
       ...opts,
       roomKey: `${roomKey}-l${level}`,
     })
@@ -249,7 +262,9 @@ async function route() {
   if (embedDispose) embedDispose()
 
   if (location.hash.startsWith('#/editor')) {
-    editor = renderEditor(app)
+    const key = resolveEditorDraftKeyForStudio(location.hash)
+    history.replaceState(null, '', `#/studio/${key}?floorplan=1`)
+    editor = renderStudio(app, key)
     return
   }
 
@@ -264,12 +279,15 @@ async function route() {
     booting = true
     try {
       const doc = await decodeGameDoc(shared[1])
-      const def = buildGameFromDoc(doc)
+      const gameDoc = doc as GameDoc
+      const allowScripts = await ensureScriptAllowed(gameDoc, 'a shared link')
+      if (hasScript(gameDoc) && !allowScripts) throw new Error('script permission was not granted')
+      const def = buildGameFromDoc(gameDoc, { allowScripts })
       // players holding the same link land in the same room family
       const roomKey = `d-${hashGameDoc(doc as object)}${roomSuffix()}`
       const runOpts: RunGameOptions = { roomKey }
       runOpts.onGoToGame = (target) =>
-        handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(doc as GameDoc, n, roomKey, runOpts) })
+        handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(gameDoc, n, roomKey, runOpts, allowScripts) })
       session = await runGame(def, app, playerName(), runOpts)
     } catch (err) {
       console.error('[boxcade] failed to load shared game', err)
@@ -311,6 +329,7 @@ async function route() {
         return
       }
       const doc = g.doc as GameDoc
+      if (hasScript(doc)) throw new Error('published scripted games are not enabled yet — share this draft link instead')
       const def = buildGameFromDoc(doc)
       countPlay(g.id)
       // room key includes the doc hash: stale cached versions split cleanly
@@ -344,6 +363,8 @@ async function route() {
     }
     booting = true
     try {
+      const allowScripts = await ensureScriptAllowed(doc, 'your local draft')
+      if (hasScript(doc) && !allowScripts) throw new Error('script permission was not granted')
       const roomKey = `draft-${key}${roomSuffix()}`
       const runOpts: RunGameOptions = {
         roomKey,
@@ -356,8 +377,8 @@ async function route() {
         },
       }
       runOpts.onGoToGame = (target) =>
-        handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(doc, n, roomKey, runOpts) })
-      session = await runGame(buildGameFromDoc(doc), app, playerName(), runOpts)
+        handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(doc, n, roomKey, runOpts, allowScripts) })
+      session = await runGame(buildGameFromDoc(doc, { allowScripts }), app, playerName(), runOpts)
     } catch (err) {
       console.error('[boxcade] failed to start draft', err)
       renderDocError(err)

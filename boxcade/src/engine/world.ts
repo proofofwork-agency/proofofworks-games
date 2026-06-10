@@ -11,7 +11,7 @@ import type { Box, ColliderSource } from './physics'
 /** built-in materials — custom kinds join via registerMaterial() */
 export type BuiltinMaterial =
   | 'plastic' | 'grass' | 'wood' | 'stone' | 'ice'
-  | 'neon' | 'lava' | 'gold' | 'glass' | 'metal' | 'sand'
+  | 'neon' | 'lava' | 'water' | 'gold' | 'glass' | 'metal' | 'sand'
 /** `(string & {})` keeps autocomplete for the built-ins while allowing custom kinds */
 export type MaterialKind = BuiltinMaterial | (string & {})
 
@@ -38,6 +38,8 @@ export interface PartDef {
    * being solid and instead scales gravity for any body inside its box
    */
   gravityZone?: number
+  /** non-solid climb volume; runtime lets the player climb while overlapping */
+  climbable?: boolean
   tag?: string
   behavior?: Behavior | Behavior[]
 }
@@ -147,6 +149,9 @@ export function partMaterial(color: string, kind: MaterialKind = 'plastic'): THR
         emissive: c, emissiveIntensity: 2.1, roughness: 0.85,
       })
       break
+    case 'water':
+      m = std({ roughness: 0.04, metalness: 0.02, transparent: true, opacity: 0.48 })
+      break
     case 'gold': m = std({ roughness: 0.26, metalness: 0.95 }); break
     case 'metal': m = std({ roughness: 0.38, metalness: 0.85 }); break
     case 'glass': m = std({ roughness: 0.08, metalness: 0, transparent: true, opacity: 0.38 }); break
@@ -254,7 +259,7 @@ registerBehavior('bob', (d) => {
 /** materials that are mirror-shiny by nature — auto-included in SSR when a
  *  game turns on rtReflections (override per part with reflect: false).
  *  registerMaterial({ reflective: true }) adds custom kinds here. */
-const AUTO_REFLECT = new Set<string>(['ice', 'metal', 'gold', 'glass'])
+const AUTO_REFLECT = new Set<string>(['ice', 'metal', 'gold', 'glass', 'water'])
 
 export class PartsWorld implements ColliderSource {
   group = new THREE.Group()

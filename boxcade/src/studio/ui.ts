@@ -6,44 +6,54 @@
 import { WEAPONS, type WeaponDef } from '../engine/combat'
 import { RULE_SOUNDS } from '../sdk/rules'
 import type { Rule, RuleAction, RuleTrigger } from '../sdk/rules'
-import { PORTAL_TARGET_RE, slugifyName, type DocPart, type DocV3, type DocVehicleType, type GameDoc, type StoreItem } from '../sdk/gamedoc'
+import { PORTAL_TARGET_RE, slugifyName, type DocPart, type DocV3, type DocVehicleType, type GameDoc, type StoreItem, type StudioGameMode } from '../sdk/gamedoc'
 import { listDrafts, loadDraft } from '../drafts'
 import type { StudioApi } from './studio'
+import { analyzeStudioScript, applyStudioMode, getStudioMode, getStudioModeSettings, SCRIPT_API, SCRIPT_ENTITY_API, STUDIO_MODE_CONTROLS, STUDIO_MODE_LABELS, STUDIO_MODE_OPTIONS, type ModeControl } from './modes'
 
-interface PaletteItem { label: string; icon: string; group: string; template: DocPart }
+export interface StudioPaletteItem {
+  label: string
+  icon: string
+  group: string
+  mapChar: string
+  mapColor: string
+  template: DocPart
+}
 
-const PALETTE: PaletteItem[] = [
-  { group: 'Build', label: 'Block', icon: '⬜', template: { kind: 'part', at: [0, 1, 0], size: [4, 1, 4], color: '#9aa0a6', material: 'stone' } },
-  { group: 'Build', label: 'Platform', icon: '🟫', template: { kind: 'part', at: [0, 1, 0], size: [6, 0.6, 6], color: '#c89c62', material: 'wood' } },
-  { group: 'Build', label: 'Wall', icon: '🧱', template: { kind: 'part', at: [0, 2, 0], size: [4, 3, 0.6], color: '#b5564e', material: 'stone' } },
-  { group: 'Build', label: 'Ice', icon: '🧊', template: { kind: 'part', at: [0, 1, 0], size: [4, 0.6, 4], color: '#bfeaff', material: 'ice' } },
-  { group: 'Build', label: 'Neon', icon: '🟩', template: { kind: 'part', at: [0, 1, 0], size: [3, 0.6, 3], color: '#59f7d2', material: 'neon' } },
-  { group: 'Build', label: 'Glass', icon: '🔷', template: { kind: 'part', at: [0, 2, 0], size: [4, 3, 0.4], color: '#bfeaff', material: 'glass' } },
-  { group: 'Gameplay', label: 'Coin', icon: '🪙', template: { kind: 'coin', at: [0, 2, 0] } },
-  { group: 'Gameplay', label: 'Lava', icon: '🔥', template: { kind: 'lava', at: [0, 0.5, 0], size: [4, 0.6, 4] } },
-  { group: 'Gameplay', label: 'Checkpoint', icon: '✅', template: { kind: 'checkpoint', at: [0, 0.8, 0], index: 1 } },
-  { group: 'Gameplay', label: 'Win pad', icon: '🏆', template: { kind: 'winPad', at: [0, 0.8, 0], size: [4, 0.6, 4] } },
-  { group: 'Gameplay', label: 'Bounce', icon: '🟢', template: { kind: 'bouncePad', at: [0, 0.8, 0], power: 24 } },
-  { group: 'Gameplay', label: 'Spinner', icon: '🌀', template: { kind: 'spinnerHazard', at: [0, 2, 0], radius: 4, count: 3 } },
-  { group: 'Gameplay', label: 'Button', icon: '🔘', template: { kind: 'button', at: [0, 1.2, 0] } },
-  { group: 'Gameplay', label: 'Door', icon: '🚪', template: { kind: 'door', at: [0, 2.5, 0], size: [2, 3, 0.5], tag: 'door' } },
-  { group: 'Gameplay', label: 'Elevator', icon: '🛗', template: { kind: 'mover', at: [0, 1, 0], size: [3, 0.6, 3], by: [0, 5, 0], period: 5 } },
-  { group: 'Gameplay', label: 'Portal', icon: '🌀', template: { kind: 'portal', at: [0, 2.2, 0], target: 'home', label: 'Portal' } },
-  { group: 'Gameplay', label: 'Low-G Zone', icon: '🌙', template: { kind: 'gravityZone', at: [0, 3, 0], size: [6, 6, 6], gravity: 0.3 } },
-  { group: 'Vehicles', label: 'Car', icon: '🚗', template: { kind: 'vehicle', at: [0, 1, 0], vehicle: 'car', speed: 26, color: '#e74c3c' } },
-  { group: 'Vehicles', label: 'Jetpack', icon: '🎒', template: { kind: 'vehicle', at: [0, 1.5, 0], vehicle: 'jetpack', speed: 12, fuel: 10, color: '#caa64b' } },
-  { group: 'Vehicles', label: 'Boat', icon: '🚤', template: { kind: 'vehicle', at: [0, 1, 0], vehicle: 'boat', speed: 14, color: '#3b82f6' } },
-  { group: 'Vehicles', label: 'Plane', icon: '✈️', template: { kind: 'vehicle', at: [0, 1.2, 0], vehicle: 'plane', speed: 34, fuel: 60, color: '#e8edf2' } },
-  { group: 'Combat', label: 'Health', icon: '💚', template: { kind: 'healthPack', at: [0, 1.8, 0] } },
-  { group: 'Combat', label: 'Ammo', icon: '📦', template: { kind: 'ammoSpawn', at: [0, 1.8, 0] } },
-  { group: 'Combat', label: 'Weapon', icon: '🚀', template: { kind: 'weaponSpawn', at: [0, 1.8, 0], weapon: 'rockets' } },
-  { group: 'Decor', label: 'Tree', icon: '🌳', template: { kind: 'tree', at: [0, 1, 0] } },
-  { group: 'Decor', label: 'Cloud', icon: '☁️', template: { kind: 'cloud', at: [0, 14, 0] } },
-  { group: 'Decor', label: 'Label', icon: '🔤', template: { kind: 'label', at: [0, 4, 0], text: 'Hello!' } },
-  { group: 'Decor', label: 'Light', icon: '💡', template: { kind: 'light', at: [0, 4, 0], intensity: 90, range: 28 } },
+export const STUDIO_PALETTE: StudioPaletteItem[] = [
+  { group: 'Build', label: 'Block', icon: '⬜', mapChar: '#', mapColor: '#9aa0a6', template: { kind: 'part', at: [0, 1, 0], size: [4, 1, 4], color: '#9aa0a6', material: 'stone' } },
+  { group: 'Build', label: 'Platform', icon: '🟫', mapChar: '=', mapColor: '#c89c62', template: { kind: 'part', at: [0, 1, 0], size: [6, 0.6, 6], color: '#c89c62', material: 'wood' } },
+  { group: 'Build', label: 'Wall', icon: '🧱', mapChar: '1', mapColor: '#b5564e', template: { kind: 'part', at: [0, 2, 0], size: [4, 3, 0.6], color: '#b5564e', material: 'stone' } },
+  { group: 'Build', label: 'Ice', icon: '🧊', mapChar: 'I', mapColor: '#bfeaff', template: { kind: 'part', at: [0, 1, 0], size: [4, 0.6, 4], color: '#bfeaff', material: 'ice' } },
+  { group: 'Build', label: 'Neon', icon: '🟩', mapChar: 'N', mapColor: '#59f7d2', template: { kind: 'part', at: [0, 1, 0], size: [3, 0.6, 3], color: '#59f7d2', material: 'neon' } },
+  { group: 'Build', label: 'Glass', icon: '🔷', mapChar: 'g', mapColor: '#bfeaff', template: { kind: 'part', at: [0, 2, 0], size: [4, 3, 0.4], color: '#bfeaff', material: 'glass' } },
+  { group: 'Gameplay', label: 'Coin', icon: '🪙', mapChar: 'C', mapColor: '#ffc94d', template: { kind: 'coin', at: [0, 2, 0] } },
+  { group: 'Gameplay', label: 'Lava', icon: '🔥', mapChar: 'L', mapColor: '#ff5a1f', template: { kind: 'lava', at: [0, 0.5, 0], size: [4, 0.6, 4] } },
+  { group: 'Gameplay', label: 'Water', icon: '💧', mapChar: '~', mapColor: '#2f81f7', template: { kind: 'water', at: [0, 0.4, 0], size: [8, 0.8, 8] } },
+  { group: 'Gameplay', label: 'Checkpoint', icon: '✅', mapChar: 'K', mapColor: '#39d98a', template: { kind: 'checkpoint', at: [0, 0.8, 0], index: 1 } },
+  { group: 'Gameplay', label: 'Win pad', icon: '🏆', mapChar: 'W', mapColor: '#ffd700', template: { kind: 'winPad', at: [0, 0.8, 0], size: [4, 0.6, 4] } },
+  { group: 'Gameplay', label: 'Bounce', icon: '🟢', mapChar: 'B', mapColor: '#06d6a0', template: { kind: 'bouncePad', at: [0, 0.8, 0], power: 24 } },
+  { group: 'Gameplay', label: 'Spinner', icon: '🌀', mapChar: 'Z', mapColor: '#ff3b3b', template: { kind: 'spinnerHazard', at: [0, 2, 0], radius: 4, count: 3 } },
+  { group: 'Gameplay', label: 'Button', icon: '🔘', mapChar: 'P', mapColor: '#ffd166', template: { kind: 'button', at: [0, 1.2, 0] } },
+  { group: 'Gameplay', label: 'Door', icon: '🚪', mapChar: 'D', mapColor: '#8a5a2b', template: { kind: 'door', at: [0, 2.5, 0], size: [2, 3, 0.5], tag: 'door' } },
+  { group: 'Gameplay', label: 'Ladder', icon: '🪜', mapChar: 'E', mapColor: '#c89c62', template: { kind: 'ladder', at: [0, 2.5, 0], size: [1.4, 5, 0.25], color: '#c89c62' } },
+  { group: 'Gameplay', label: 'Elevator', icon: '🛗', mapChar: 'V', mapColor: '#9aa0a6', template: { kind: 'mover', at: [0, 1, 0], size: [3, 0.6, 3], by: [0, 5, 0], period: 5 } },
+  { group: 'Gameplay', label: 'Portal', icon: '🌀', mapChar: 'Q', mapColor: '#8a5cff', template: { kind: 'portal', at: [0, 2.2, 0], target: 'home', label: 'Portal' } },
+  { group: 'Gameplay', label: 'Low-G Zone', icon: '🌙', mapChar: 'U', mapColor: '#6d8cff', template: { kind: 'gravityZone', at: [0, 3, 0], size: [6, 6, 6], gravity: 0.3 } },
+  { group: 'Vehicles', label: 'Car', icon: '🚗', mapChar: 'R', mapColor: '#e74c3c', template: { kind: 'vehicle', at: [0, 1, 0], vehicle: 'car', speed: 26, color: '#e74c3c' } },
+  { group: 'Vehicles', label: 'Jetpack', icon: '🎒', mapChar: 'J', mapColor: '#caa64b', template: { kind: 'vehicle', at: [0, 1.5, 0], vehicle: 'jetpack', speed: 12, fuel: 10, color: '#caa64b' } },
+  { group: 'Vehicles', label: 'Boat', icon: '🚤', mapChar: 'O', mapColor: '#3b82f6', template: { kind: 'vehicle', at: [0, 1, 0], vehicle: 'boat', speed: 14, color: '#3b82f6' } },
+  { group: 'Vehicles', label: 'Plane', icon: '✈️', mapChar: 'F', mapColor: '#e8edf2', template: { kind: 'vehicle', at: [0, 1.2, 0], vehicle: 'plane', speed: 34, fuel: 60, color: '#e8edf2' } },
+  { group: 'Combat', label: 'Health', icon: '💚', mapChar: 'H', mapColor: '#37d67a', template: { kind: 'healthPack', at: [0, 1.8, 0] } },
+  { group: 'Combat', label: 'Ammo', icon: '📦', mapChar: 'A', mapColor: '#caa64b', template: { kind: 'ammoSpawn', at: [0, 1.8, 0] } },
+  { group: 'Combat', label: 'Weapon', icon: '🚀', mapChar: 'Y', mapColor: '#cfd8e3', template: { kind: 'weaponSpawn', at: [0, 1.8, 0], weapon: 'rockets' } },
+  { group: 'Decor', label: 'Tree', icon: '🌳', mapChar: 'T', mapColor: '#3f9e35', template: { kind: 'tree', at: [0, 1, 0] } },
+  { group: 'Decor', label: 'Cloud', icon: '☁️', mapChar: 'M', mapColor: '#ffffff', template: { kind: 'cloud', at: [0, 14, 0] } },
+  { group: 'Decor', label: 'Label', icon: '🔤', mapChar: '@', mapColor: '#e8ecf6', template: { kind: 'label', at: [0, 4, 0], text: 'Hello!' } },
+  { group: 'Decor', label: 'Light', icon: '💡', mapChar: '*', mapColor: '#fff3c4', template: { kind: 'light', at: [0, 4, 0], intensity: 90, range: 28 } },
 ]
 
-const MATERIALS = ['plastic', 'grass', 'wood', 'stone', 'ice', 'neon', 'lava', 'gold', 'glass', 'metal', 'sand']
+const MATERIALS = ['plastic', 'grass', 'wood', 'stone', 'ice', 'neon', 'lava', 'water', 'gold', 'glass', 'metal', 'sand']
 const LIGHTING = ['noon', 'morning', 'goldenHour', 'night', 'space']
 const WEAPON_SOUNDS = ['sidearm', 'shock', 'pulse', 'minigun', 'flak', 'rocket', 'sniper']
 const VOXEL_SIZES = [64, 96, 128]
@@ -64,6 +74,33 @@ const VEHICLE_DEFAULT_FUEL: Partial<Record<DocVehicleType, number>> = {
   plane: 60,
 }
 const STORE_KINDS: Array<[StoreItem['kind'], string]> = [['shirt', 'shirt'], ['trail', 'trail']]
+const SCRIPT_STARTER = `let wave = 0
+let nextWaveAt = 1
+
+boxcade.onStart(() => {
+  boxcade.toast('Survive the waves!')
+  boxcade.setVar('wave', 0)
+})
+
+boxcade.onTick((time, dt, state) => {
+  if (!state.isHost || time < nextWaveAt) return
+  wave += 1
+  boxcade.setVar('wave', wave)
+  boxcade.big('Wave ' + wave)
+  const count = 2 + wave
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2
+    boxcade.spawnBot({
+      name: 'Bot ' + wave + '-' + i,
+      team: 'enemy',
+      skill: Math.min(1, 0.35 + wave * 0.04),
+      spawns: [[Math.cos(a) * 18, 3, Math.sin(a) * 18]],
+      shirt: '#e74c3c',
+    })
+  }
+  nextWaveAt = time + Math.max(6, 16 - wave)
+})
+`
 
 /** every weapon id usable in this game: built-in arsenal + the doc's customs */
 function allWeaponIds(doc: GameDoc): string[] {
@@ -173,6 +210,12 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
   nameField.classList.add('st-name')
   const savedChip = el('span', 'st-saved', '')
   const partChip = el('span', 'st-chip', '')
+  const buildModeB = btn('3D Build', 'ghost st-mode')
+  buildModeB.title = 'Edit 3D parts, terrain, rules and world settings'
+  buildModeB.onclick = () => api.setViewMode('build')
+  const floorB = btn('Floor Plan', 'ghost st-mode')
+  floorB.title = 'Paint this game\'s tile map and edit Text Mode'
+  floorB.onclick = () => api.setViewMode('floorplan')
   const snapB = btn('', 'ghost st-snap')
   snapB.title = 'Grid snap step — click to toggle'
   const refreshSnap = () => { snapB.textContent = `Grid ${api.getSnap()}` }
@@ -186,18 +229,21 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
   const helpB = btn('?', 'ghost')
   const playB = btn('▶ Test play', '')
   playB.onclick = () => api.testPlay()
-  // the 2D floor plan is the OTHER view of this same draft: it paints the doc's
-  // textmap floor plan and the 3D view rebuilds live behind it. The button
-  // toggles an in-Studio overlay (no route change); Esc inside it also closes.
-  const floorB = btn('🗺 Floor plan', 'ghost')
-  floorB.title = 'Toggle this game\'s 2D floor plan — paint tiles & layers in place'
-  floorB.onclick = () => api.floorPlan.toggle()
+  const txtB = btn('⬇ TXT', 'ghost')
+  txtB.title = 'Download this floor plan as a .txt text map'
+  txtB.onclick = () => api.downloadTextmap()
+  const jsonB = btn('⬇ JSON', 'ghost')
+  jsonB.title = 'Download this game as a .boxcade.json file'
+  jsonB.onclick = () => api.downloadJson()
+  const tsB = btn('⬇ TS', 'ghost')
+  tsB.title = 'Export a trusted TypeScript starter for local developer mode'
+  tsB.onclick = () => api.downloadTypeScript()
   const shareB = btn('🔗 Share', 'ghost')
   shareB.onclick = async () => {
     const res = await api.share()
     api.toast(res.copied ? '🔗 Share link copied!' : '📦 Too big for a link — file downloaded')
   }
-  top.append(back, nameField, partChip, snapB, savedChip, undoB, redoB, helpB, floorB, playB, shareB)
+  top.append(back, nameField, partChip, buildModeB, floorB, snapB, savedChip, undoB, redoB, helpB, txtB, jsonB, tsB, playB, shareB)
   shell.appendChild(top)
   refreshSnap()
 
@@ -209,8 +255,8 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
   const palette = el('div', 'studio-palette')
   palette.appendChild(el('h3', '', 'Place'))
   const groups = new Map<string, HTMLElement>()
-  const paletteButtons = new Map<HTMLButtonElement, PaletteItem>()
-  for (const item of PALETTE) {
+  const paletteButtons = new Map<HTMLButtonElement, StudioPaletteItem>()
+  for (const item of STUDIO_PALETTE) {
     let g = groups.get(item.group)
     if (!g) {
       palette.appendChild(el('div', 'st-group', item.group))
@@ -255,26 +301,37 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
   const tabs = el('div', 'st-tabs')
   const tabPart = btn('Part', 'ghost st-tab')
   const tabWorld = btn('World', 'ghost st-tab')
+  const tabMode = btn('Mode', 'ghost st-tab')
   const tabLogic = btn('Logic', 'ghost st-tab')
-  tabs.append(tabPart, tabWorld, tabLogic)
+  const tabScript = btn('Script', 'ghost st-tab')
+  tabs.append(tabPart, tabWorld, tabMode, tabLogic, tabScript)
   const body = el('div', 'st-body')
   side.append(tabs, body)
   shell.appendChild(side)
 
-  let activeTab: 'part' | 'world' | 'logic' = 'part'
+  let activeTab: 'part' | 'world' | 'mode' | 'logic' | 'script' = 'part'
+  let scriptExpanded = false
   // index of the custom weapon whose edit form is open (null = list only)
   let editingWeapon: number | null = null
   function setTab(t: typeof activeTab) {
     if (t !== 'world') editingWeapon = null
+    if (t !== 'script') {
+      scriptExpanded = false
+      shell.classList.remove('script-editor-expanded')
+    }
     activeTab = t
     tabPart.classList.toggle('sel', t === 'part')
     tabWorld.classList.toggle('sel', t === 'world')
+    tabMode.classList.toggle('sel', t === 'mode')
     tabLogic.classList.toggle('sel', t === 'logic')
+    tabScript.classList.toggle('sel', t === 'script')
     renderBody()
   }
   tabPart.onclick = () => setTab('part')
   tabWorld.onclick = () => setTab('world')
+  tabMode.onclick = () => setTab('mode')
   tabLogic.onclick = () => setTab('logic')
+  tabScript.onclick = () => setTab('script')
 
   // ----- Part properties -----
   function renderPartTab(mount: HTMLElement) {
@@ -299,7 +356,7 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
         numInput(p.size[0], 0.5, setSize(0)), numInput(p.size[1], 0.5, setSize(1)), numInput(p.size[2], 0.5, setSize(2))))
     }
 
-    if (p.kind === 'part' || p.kind === 'door' || p.kind === 'mover' || p.kind === 'button' || p.kind === 'vehicle' || p.kind === 'gravityZone') {
+    if (p.kind === 'part' || p.kind === 'door' || p.kind === 'mover' || p.kind === 'button' || p.kind === 'vehicle' || p.kind === 'gravityZone' || p.kind === 'ladder') {
       const colorIn = el('input', 'st-color') as HTMLInputElement
       colorIn.type = 'color'
       colorIn.value = /^#[0-9a-f]{6}$/i.test(p.color ?? '') ? (p.color as string) : p.kind === 'gravityZone' ? '#8a5cff' : '#9aa0a6'
@@ -312,7 +369,7 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
     }
     // rotY is visual-only yaw — honored for the kinds the interpreter places
     // via a single slab (part, door, mover, button, portal)
-    if (p.kind === 'part' || p.kind === 'door' || p.kind === 'mover' || p.kind === 'button' || p.kind === 'portal') {
+    if (p.kind === 'part' || p.kind === 'door' || p.kind === 'mover' || p.kind === 'button' || p.kind === 'portal' || p.kind === 'ladder') {
       mount.appendChild(row('rotate°', numInput(((p.rotY ?? 0) * 180) / Math.PI, 15,
         (v) => api.mutate('rot', (d) => { (d.parts![i] as typeof sized).rotY = (v * Math.PI) / 180 }))))
       mount.appendChild(el('p', 'st-hint', 'Rotate/resize are visual — collision stays box-aligned. Keys: [ ] rotate · + − resize.'))
@@ -1080,6 +1137,194 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
     mount.appendChild(addRule)
   }
 
+  function renderScriptTab(mount: HTMLElement) {
+    const doc = api.doc
+    mount.appendChild(el('h3', '', 'Script'))
+    mount.appendChild(el('p', 'st-hint', 'Scripts run in a sandbox and can control HUD, vars, parts, bots, teams and game flow. Players are asked before a scripted draft or share link runs.'))
+    if (doc.studio?.scriptManaged) {
+      mount.appendChild(el('p', 'st-mode-note', `Managed by ${STUDIO_MODE_LABELS[getStudioMode(doc)]} Mode. Edit settings in the Mode tab, or switch Mode to Custom before hand-editing.`))
+    }
+
+    const enabled = !!doc.script?.trim()
+    mount.appendChild(row('enable', checkbox(enabled, (v) => api.mutateSettings((d) => {
+      if (v) {
+        d.v = Math.max(d.v, 2)
+        d.script = d.script?.trim() || SCRIPT_STARTER
+      } else {
+        delete d.script
+      }
+    }))))
+
+    if (!enabled) {
+      const add = btn('＋ Add starter script', 'ghost')
+      add.onclick = () => api.mutateSettings((d) => {
+        d.v = Math.max(d.v, 2)
+        d.script = SCRIPT_STARTER
+      })
+      mount.appendChild(add)
+      renderScriptReference(mount)
+      return
+    }
+
+    const editor = el('div', 'st-code-editor')
+    const codeHead = el('div', 'st-code-head')
+    const status = el('span', 'st-code-status')
+    const validate = btn('Validate', 'ghost')
+    const expand = btn(scriptExpanded ? 'Collapse' : 'Expand', 'ghost')
+    expand.onclick = () => {
+      scriptExpanded = !scriptExpanded
+      shell.classList.toggle('script-editor-expanded', scriptExpanded)
+      renderBody()
+    }
+    codeHead.append(status, expand, validate)
+    editor.appendChild(codeHead)
+    const area = el('textarea', 'st-script') as HTMLTextAreaElement
+    area.spellcheck = false
+    area.value = doc.script ?? ''
+    editor.appendChild(area)
+    const analysisMount = el('div')
+    const refreshAnalysis = (announce = false) => {
+      const chars = area.value.length
+      const lines = area.value ? area.value.split(/\r?\n/).length : 0
+      const analysis = analyzeStudioScript(area.value)
+      const result = analysis.errors.length ? `${analysis.errors.length} errors` : analysis.warnings.length ? `${analysis.warnings.length} warnings` : 'valid'
+      status.textContent = `${result} · ${lines} lines · ${chars} chars`
+      analysisMount.innerHTML = ''
+      renderScriptAnalysis(analysisMount, area.value)
+      if (announce) {
+        api.toast(analysis.errors.length ? `Script has ${analysis.errors.length} errors` : analysis.warnings.length ? `Script has ${analysis.warnings.length} warnings` : 'Script validation passed')
+        analysisMount.scrollIntoView({ block: 'nearest' })
+      }
+    }
+    validate.onclick = () => refreshAnalysis(true)
+    area.addEventListener('input', () => refreshAnalysis(false))
+    area.addEventListener('focus', () => { focusGuard(true) })
+    area.addEventListener('blur', () => {
+      focusGuard(false)
+      api.mutateSettings((d) => {
+        d.v = Math.max(d.v, 2)
+        d.script = area.value.slice(0, 64 * 1024)
+      })
+    })
+    mount.appendChild(editor)
+
+    const controls = el('div', 'st-actions')
+    const wave = btn('Wave example', 'ghost')
+    wave.onclick = () => {
+      area.value = SCRIPT_STARTER
+      refreshAnalysis(false)
+      api.mutateSettings((d) => { d.v = Math.max(d.v, 2); d.script = SCRIPT_STARTER })
+    }
+    const clear = btn('Clear script', 'ghost')
+    clear.onclick = () => api.mutateSettings((d) => {
+      delete d.script
+      if (d.studio) d.studio.scriptManaged = false
+    })
+    controls.append(wave, clear)
+    mount.appendChild(controls)
+    mount.appendChild(analysisMount)
+    refreshAnalysis(false)
+    renderScriptReference(mount)
+  }
+
+  function renderModeTab(mount: HTMLElement) {
+    const doc = api.doc
+    const mode = getStudioMode(doc)
+    const settings = getStudioModeSettings(doc, mode)
+    mount.appendChild(el('h3', '', 'Game Mode'))
+    mount.appendChild(el('p', 'st-hint', 'Mode Builder generates normal Boxcade parts, combat settings, vars, rules and sandbox scripts. Your own placed parts stay untouched.'))
+
+    mount.appendChild(row('mode', selectInput(STUDIO_MODE_OPTIONS, mode, (v) => {
+      const next = v as StudioGameMode
+      api.mutateSettings((d) => { applyStudioMode(d, next, undefined) })
+    })))
+
+    if (mode === 'custom') {
+      mount.appendChild(el('p', 'st-mode-note', 'Custom keeps the current draft as-is. Use World, Logic and Script tabs directly, or choose a preset to generate a full game loop.'))
+      renderScriptAnalysis(mount, doc.script ?? '')
+      return
+    }
+
+    for (const control of STUDIO_MODE_CONTROLS[mode]) {
+      mount.appendChild(renderModeControl(mode, settings, control))
+    }
+
+    const controls = el('div', 'st-actions')
+    const regen = btn('Regenerate mode')
+    regen.onclick = () => {
+      api.mutateSettings((d) => { applyStudioMode(d, mode, settings) })
+      api.toast(`${STUDIO_MODE_LABELS[mode]} mode regenerated`)
+    }
+    const custom = btn('Make custom', 'ghost')
+    custom.onclick = () => api.mutateSettings((d) => {
+      d.studio = { ...(d.studio ?? {}), schema: 1, mode: 'custom', settings: {}, scriptManaged: false }
+    })
+    controls.append(regen, custom)
+    mount.appendChild(controls)
+
+    const analysis = analyzeStudioScript(doc.script ?? '')
+    mount.appendChild(el('p', 'st-mode-note', `${STUDIO_MODE_LABELS[mode]} owns ${doc.parts?.filter((p) => p.tag === 'mode_managed' || p.id?.startsWith('mode_')).length ?? 0} generated parts and ${analysis.capabilities.length} script capabilities.`))
+    renderScriptAnalysis(mount, doc.script ?? '')
+  }
+
+  function renderModeControl(mode: StudioGameMode, settings: Record<string, unknown>, control: ModeControl): HTMLElement {
+    const commit = (value: unknown) => api.mutateSettings((d) => {
+      const next = getStudioModeSettings(d, mode)
+      next[control.key] = value
+      applyStudioMode(d, mode, next)
+    })
+    if (control.kind === 'number') {
+      return row(control.label, numInput(Number(settings[control.key] ?? 0), control.step ?? 1, (v) => commit(v)))
+    }
+    if (control.kind === 'checkbox') {
+      return row(control.label, checkbox(Boolean(settings[control.key]), (v) => commit(v)))
+    }
+    return row(control.label, selectInput(control.options ?? [], String(settings[control.key] ?? ''), (v) => commit(v)))
+  }
+
+  function renderScriptAnalysis(mount: HTMLElement, script: string) {
+    const analysis = analyzeStudioScript(script)
+    if (!script.trim()) return
+    const box = el('div', 'st-analysis')
+    const titleText = analysis.errors.length
+      ? 'Script has errors'
+      : analysis.warnings.length
+        ? 'Script has warnings'
+        : 'Script check passed'
+    const title = el('div', 'st-analysis-title', titleText)
+    box.appendChild(title)
+    if (analysis.capabilities.length) box.appendChild(el('p', '', `Uses: ${analysis.capabilities.join(', ')}`))
+    for (const e of analysis.errors) box.appendChild(el('p', 'st-warn', e))
+    for (const w of analysis.warnings) box.appendChild(el('p', 'st-hint', w))
+    mount.appendChild(box)
+  }
+
+  function renderScriptReference(mount: HTMLElement) {
+    const ref = el('details', 'st-api-ref') as HTMLDetailsElement
+    ref.open = false
+    ref.appendChild(el('summary', '', 'Sandbox API reference'))
+    ref.appendChild(el('p', 'st-hint', 'Validated against the documented Worker sandbox: no DOM, network, storage, imports, or raw engine objects.'))
+    const list = el('div', 'st-api-list')
+    for (const entry of SCRIPT_API) {
+      const item = el('button', 'st-api-item') as HTMLButtonElement
+      item.type = 'button'
+      item.title = entry.desc
+      item.append(el('code', '', entry.signature), el('span', '', entry.desc))
+      item.onclick = () => navigator.clipboard?.writeText(entry.signature).catch(() => {})
+      list.appendChild(item)
+    }
+    ref.appendChild(list)
+    ref.appendChild(el('p', 'st-sub', 'Entity proxy'))
+    const entities = el('div', 'st-api-list')
+    for (const entry of SCRIPT_ENTITY_API) {
+      const item = el('div', 'st-api-item')
+      item.append(el('code', '', entry.signature), el('span', '', entry.desc))
+      entities.appendChild(item)
+    }
+    ref.appendChild(entities)
+    mount.appendChild(ref)
+  }
+
   // ----- render cycle -----
   let lastSelection: number | null = null
 
@@ -1087,7 +1332,9 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
     body.innerHTML = ''
     if (activeTab === 'part') renderPartTab(body)
     else if (activeTab === 'world') renderWorldTab(body)
-    else renderLogicTab(body)
+    else if (activeTab === 'mode') renderModeTab(body)
+    else if (activeTab === 'logic') renderLogicTab(body)
+    else renderScriptTab(body)
   }
 
   function refreshSavedChip() {
@@ -1099,7 +1346,8 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
 
   api.onChange(() => {
     refreshSavedChip()
-    floorB.classList.toggle('sel', api.floorPlan.isOpen())
+    buildModeB.classList.toggle('sel', api.viewMode === 'build')
+    floorB.classList.toggle('sel', api.viewMode === 'floorplan')
     if (!api.armed) for (const b of paletteButtons.keys()) b.classList.remove('armed')
     if (nameField !== document.activeElement) nameField.value = api.doc.meta.name
     // selecting a part jumps to its properties

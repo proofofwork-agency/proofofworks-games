@@ -9,7 +9,8 @@ import { registerWeapon, type CombatConfig, type WeaponDef } from '../engine/com
 import { buildTextMap } from './textmap'
 import { validateGameDoc, migrateGameDoc, slugifyName, type GameDoc, type DocPart } from './gamedoc'
 import { createRulesSystem, PartRegistry, v3FromDoc, type RulesSystem } from './rules'
-import type { GameDef, GameMeta, WorldBuilder, SdkPart, VehicleOptions } from './index'
+import { createScriptSystem } from './script-host'
+import type { GameDef, GameMeta, GameSystem, WorldBuilder, SdkPart, VehicleOptions } from './index'
 
 /** thrown when a doc fails validation — `errors` are player-friendly lines */
 export class GameDocError extends Error {
@@ -32,6 +33,8 @@ export interface BuildGameOptions {
    * the level omits them. Out-of-range or missing levels fall back to root.
    */
   level?: number
+  /** scripted docs run only after the shell has granted permission */
+  allowScripts?: boolean
 }
 
 /**
@@ -47,6 +50,9 @@ export function buildGameFromDoc(input: unknown, opts?: BuildGameOptions): GameD
   if (!res.ok || !res.doc) throw new GameDocError(res.errors)
   const root = migrateGameDoc(res.doc)
   const { doc, levelN } = resolveLevel(root, opts?.level ?? 0)
+  if (doc.script?.trim() && !opts?.allowScripts) {
+    throw new GameDocError(['this game contains a creator script — run it from a trusted route or accept the script prompt'])
+  }
 
   const baseName = doc.meta.name
   const meta: GameMeta = {
@@ -71,6 +77,9 @@ export function buildGameFromDoc(input: unknown, opts?: BuildGameOptions): GameD
     (doc.rules?.length ?? 0) > 0 || doc.vars
       ? createRulesSystem(doc.rules ?? [], doc.vars, registry)
       : null
+  const script = doc.script?.trim()
+  const scriptSystem = script ? createScriptSystem(doc, script, registry) : null
+  const systems = [rules, scriptSystem].filter((s): s is GameSystem => !!s)
 
   return {
     meta,
@@ -80,7 +89,7 @@ export function buildGameFromDoc(input: unknown, opts?: BuildGameOptions): GameD
     rtReflections: doc.rtReflections,
     combat,
     services: doc.services,
-    systems: rules ? [rules] : undefined,
+    systems: systems.length > 0 ? systems : undefined,
     build(w) {
       if (doc.lighting) w.lighting(doc.lighting)
       if (doc.killY !== undefined) w.killY(doc.killY)
@@ -235,6 +244,7 @@ function placeDocPart(w: WorldBuilder, p: DocPart, registry: PartRegistry, rules
     case 'tree': w.tree(at, p.scale); break
     case 'cloud': w.cloud(at, p.scale); break
     case 'lava': w.lava(at, p.size ? v3FromDoc(p.size) : v3(2, 1, 2)); break
+    case 'water': w.add({ at, size: p.size ? v3FromDoc(p.size) : v3(8, 1, 8), color: '#2f81f7', material: 'water', collide: false }); break
     case 'winPad': w.winPad(at, p.size ? v3FromDoc(p.size) : undefined); break
     case 'checkpoint': w.checkpoint(at, p.index ?? 1, p.size ? v3FromDoc(p.size) : undefined); break
     case 'bouncePad': w.bouncePad(at, p.power, p.size ? v3FromDoc(p.size) : undefined); break
@@ -249,6 +259,25 @@ function placeDocPart(w: WorldBuilder, p: DocPart, registry: PartRegistry, rules
       color: p.color ?? '#8a5cff',
       material: 'glass',
     }); break
+    case 'ladder': {
+      const size = p.size ? v3FromDoc(p.size) : v3(1.4, 5, 0.25)
+      const def: SdkPart = {
+        at,
+        size,
+        color: p.color ?? '#c89c62',
+        material: 'wood',
+        rotY: p.rotY,
+        collide: false,
+        climbable: true,
+      }
+      if (rules && rules.wantsTouch([p.id, p.tag])) {
+        const refs = [p.id, p.tag].filter((r): r is string => !!r)
+        def.onTouch = (ctx) => rules.notifyTouch(refs, ctx)
+      }
+      const handle = w.add(def)
+      if (p.id || p.tag) registry.add({ handle, def: { kind: 'part', id: p.id, tag: p.tag, at: p.at, size: [size.x, size.y, size.z] } })
+      break
+    }
     case 'vehicle': {
       const opts: VehicleOptions = {}
       if (p.speed !== undefined) opts.speed = p.speed

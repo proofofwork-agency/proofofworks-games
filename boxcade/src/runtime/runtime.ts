@@ -549,6 +549,8 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   function instantiatePart(d: SdkPart): RuntimePart {
     const rp = parts.add(d)
     handleMap.set(d, rp)
+    if (d.climbable) ladderParts.push(rp)
+    if (d.material === 'water') waterParts.push(rp)
     if (d.onTouch) {
       rp.touch = () => d.onTouch!(ctx)
       rp.touchOnce = !!d.touchOnce
@@ -563,8 +565,18 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     return rp
   }
 
+  const ladderParts: RuntimePart[] = []
+  const waterParts: RuntimePart[] = []
   for (const d of pendingParts) instantiatePart(d)
   for (const l of pendingLabels) parts.addLabel(l.text, l.at, l.scale, l.color)
+
+  function pointInPlacedWater(x: number, y: number, z: number) {
+    for (const water of waterParts) {
+      const b = water.box()
+      if (x >= b.minX && x <= b.maxX && y >= b.minY && y <= b.maxY && z >= b.minZ && z <= b.maxZ) return true
+    }
+    return false
+  }
 
   // ---- combat pickups: health packs, weapon spawns, ammo crates ----------
   // Registered with the CombatSystem so BOTS loot them too; without combat
@@ -640,7 +652,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   const vehicleEnv: VehicleEnv = {
     sources: [...sources], // parts + voxels — vehicles never collide with themselves
     gravity: char.gravity,
-    isWater: voxels ? (x, y, z) => (voxels as VoxelWorld).isWater(x, y, z) : () => false,
+    isWater: (x, y, z) => pointInPlacedWater(x, y, z) || (voxels ? (voxels as VoxelWorld).isWater(x, y, z) : false),
   }
   for (const { type, at, opts } of pendingVehicles) {
     const v = new Vehicle(type, at, opts)
@@ -1002,6 +1014,20 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   }
 
   let wasInWater = false
+  let lastSpacePressedAt = -Infinity
+
+  function touchingLadder(): RuntimePart | null {
+    for (const p of ladderParts) {
+      if (p.removed) continue
+      const b = p.box()
+      if (
+        char.pos.x + char.halfW > b.minX && char.pos.x - char.halfW < b.maxX &&
+        char.pos.y + char.height > b.minY && char.pos.y < b.maxY &&
+        char.pos.z + char.halfW > b.minZ && char.pos.z - char.halfW < b.maxZ
+      ) return p
+    }
+    return null
+  }
 
   // ---------- game loop ----------
   def.onStart?.(ctx)
@@ -1020,6 +1046,11 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     const dt = Math.min(0.05, (now - last) / 1000)
     last = now
     const t = (now - started) / 1000
+    let highJumpPressed = false
+    if (!chatSys.isOpen && !pauseSys.isOpen && input.wasPressed(' ')) {
+      highJumpPressed = now - lastSpacePressedAt <= 320
+      lastSpacePressedAt = now
+    }
 
     // parts behaviors (platforms move before the player so deltas are fresh)
     parts.update(t, dt)
@@ -1034,10 +1065,10 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       z: fwd.z * axes.z + right.z * axes.x,
     }
 
-    // water check (voxel worlds)
-    if (voxels) {
-      const vw = voxels as VoxelWorld
-      const inWater = vw.isWater(char.pos.x, char.pos.y + 0.9, char.pos.z)
+    // water check (voxel worlds + placed water elements)
+    {
+      const inWater = pointInPlacedWater(char.pos.x, char.pos.y + 0.9, char.pos.z) ||
+        (voxels ? (voxels as VoxelWorld).isWater(char.pos.x, char.pos.y + 0.9, char.pos.z) : false)
       if (inWater && !wasInWater) audio.splash()
       wasInWater = inWater
       char.inWater = inWater
@@ -1048,13 +1079,13 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     if (!chatSys.isOpen && !selfDead && input.wasPressed('e')) {
       if (driving) exitVehicle(false)
       else {
-        const near = nearestVehicle(3.6)
+        const near = nearestVehicle(5.2)
         if (near) enterVehicle(near)
       }
     }
     if (!driving && vehicles.length > 0) {
-      const near = nearestVehicle(3.6)
-      if (near) hud.set('vehicle', `${VEHICLE_EMOJI[near.v.type]} Press E to ${near.v.type === 'jetpack' ? 'wear the jetpack' : 'drive'}`)
+      const near = nearestVehicle(5.2)
+      if (near) hud.set('vehicle', `${VEHICLE_EMOJI[near.v.type]} Press E to ${near.v.type === 'plane' ? 'fly' : near.v.type === 'jetpack' ? 'wear' : 'drive'} · W/S throttle · A/D steer · Space up · Shift down`)
       else hud.remove('vehicle')
       touch?.setVehicle(near ? VEHICLE_EMOJI[near.v.type] : null)
     } else if (driving) {
@@ -1064,6 +1095,9 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     // gravity zones scale the fall (low-g bubbles) for the player and rides
     const zonesLive = parts.gravityZones.length > 0
     char.gravityScale = zonesLive ? parts.gravityAt(char.pos.x, char.pos.y + 0.9, char.pos.z) : 1
+    const ladder = !driving && !selfDead ? touchingLadder() : null
+    if (ladder) hud.set('ladder', '🪜 W/Space climb · S/Shift down')
+    else hud.remove('ladder')
 
     if (driving) {
       const s = driving
@@ -1079,7 +1113,22 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       char.grounded = s.v.grounded
       if (s.v.fuelMax !== Infinity) hud.set('fuel', `⛽ ${Math.ceil(s.v.fuel)}s`)
     } else {
-      char.step(dt, wish, !selfDead && input.jumpHeld(), sources)
+      if (ladder) {
+        const climbUp = input.jumpHeld() || input.held('w') || input.held('arrowup')
+        const climbDown = input.held('shift') || input.held('s') || input.held('arrowdown')
+        const climb = (climbUp ? 1 : 0) - (climbDown ? 1 : 0)
+        char.gravityScale = 0
+        char.vel.y = climb * 6.8
+        char.step(dt, wish, false, sources)
+        char.grounded = false
+        char.groundInfo = null
+      } else {
+        char.step(dt, wish, !selfDead && input.jumpHeld(), sources)
+        if (highJumpPressed && !selfDead && !char.inWater && char.vel.y > 1) {
+          char.vel.y = Math.max(char.vel.y, char.jumpVel * 1.45)
+          audio.jump()
+        }
+      }
     }
 
     // parked rides settle/bob; abandoned ones head home after a while

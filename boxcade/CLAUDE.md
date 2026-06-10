@@ -10,22 +10,23 @@ Use ContextRelay when:
 - You want implementation help, test help, debugging help, or architecture review.
 - You would normally stop to ask the human a planning or decision question that the peer agent can help answer first.
 
-Claude should ask Codex for:
+Codex should coordinate:
+- Planning and task routing.
 - Focused implementation work.
 - Test writing or debugging.
-- Code review and logic checks.
-- Alternative implementation approaches.
+- Git writes when runtime permissions allow it and the human has approved this repo policy.
 
-Codex should ask Claude for:
-- Planning and coordination.
-- Repo-wide reasoning.
+Claude should support Codex with:
+- Repo-wide reasoning and architecture review.
 - Risk review before large changes.
+- Alternative implementation approaches.
+- Focused implementation or debugging tasks when Codex delegates them.
 
 Git write policy:
 - Git write operations should be handled only by the current coordinator agent or the human.
-- Current coordinator: Claude.
-- If the project explicitly configures Codex as coordinator, Codex may handle branch, commit, merge, push, and PR work only when runtime permissions allow it and the human has approved that policy.
-- Non-coordinator agents should use read-only git commands only and hand off git-sensitive work to Claude.
+- Current coordinator: Codex.
+- Codex may handle branch, commit, merge, push, and PR work only when runtime permissions allow it and the human has approved that policy.
+- Non-coordinator agents should use read-only git commands only and hand off git-sensitive work to Codex or the human.
 
 Use explicit handoffs when passing control:
 - State the reason.

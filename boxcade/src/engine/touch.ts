@@ -290,7 +290,10 @@ export function attachTouchControls(
 
   bindHold(
     jumpBtn,
-    () => input.keys.add(' '),
+    () => {
+      input.keys.add(' ')
+      input.pressed.add(' ')
+    },
     () => input.keys.delete(' '),
   )
 

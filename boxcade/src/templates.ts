@@ -265,6 +265,174 @@ function makeTower(): GameDoc {
   }
 }
 
+function makeWaveSurvival(): GameDoc {
+  return {
+    boxcade: 'gamedoc',
+    v: 2,
+    meta: {
+      name: 'Scripted Wave Survival',
+      emoji: '🌊',
+      genre: 'Survival',
+      blurb: 'A Studio-scripted combat loop with scaling bot waves.',
+      gradient: 'linear-gradient(135deg, #273c75, #44bd32)',
+    },
+    camera: 'fp',
+    lighting: 'night',
+    spawn: [0, 3, 0],
+    combat: { selfTeam: 'hero', health: 120, weapons: ['sidearm', 'pulse', 'flak'], startWeapons: ['sidearm', 'pulse'], infiniteAmmo: true },
+    vars: { wave: 0 },
+    parts: [
+      { kind: 'part', at: [0, 0, 0], size: [54, 1, 54], material: 'metal', color: '#2f3640' },
+      { kind: 'part', at: [0, 3, 27], size: [54, 6, 1], material: 'stone' },
+      { kind: 'part', at: [0, 3, -27], size: [54, 6, 1], material: 'stone' },
+      { kind: 'part', at: [27, 3, 0], size: [1, 6, 54], material: 'stone' },
+      { kind: 'part', at: [-27, 3, 0], size: [1, 6, 54], material: 'stone' },
+      { kind: 'weaponSpawn', at: [12, 1.5, 0], weapon: 'flak' },
+      { kind: 'healthPack', at: [-12, 1.5, 0] },
+      { kind: 'ammoSpawn', at: [0, 1.5, 12] },
+      { kind: 'label', at: [0, 7, 0], text: 'SURVIVE THE WAVES', scale: 1.1, color: '#9fe8d8' },
+    ],
+    script: `let wave = 0
+let nextAt = 1
+const spawns = [[22,3,22],[-22,3,22],[22,3,-22],[-22,3,-22]]
+
+boxcade.onStart(() => {
+  boxcade.setSpawnPoints([[0,3,0]])
+  boxcade.toast('Scripted game mode: survive as long as you can.')
+})
+
+boxcade.onTick((time, dt, state) => {
+  if (!state.isHost || time < nextAt) return
+  wave += 1
+  boxcade.setVar('wave', wave)
+  boxcade.big('Wave ' + wave)
+  const count = Math.min(14, 2 + wave * 2)
+  for (let i = 0; i < count; i++) {
+    const s = spawns[i % spawns.length]
+    boxcade.spawnBot({ name: 'Raider ' + wave + '-' + i, team: 'enemy', skill: Math.min(1, 0.35 + wave * 0.05), spawns: [s], shirt: '#e74c3c' })
+  }
+  nextAt = time + Math.max(8, 18 - wave)
+})
+`,
+  }
+}
+
+function makeCtfArena(): GameDoc {
+  return {
+    boxcade: 'gamedoc',
+    v: 2,
+    meta: {
+      name: 'Scripted CTF Arena',
+      emoji: '🚩',
+      genre: 'CTF',
+      blurb: 'A two-base shooter starter with scripted teams and bot objectives.',
+      gradient: 'linear-gradient(135deg, #e74c3c, #3b82f6)',
+    },
+    camera: 'fp',
+    lighting: 'space',
+    spawn: [0, 3, -20],
+    combat: { selfTeam: 'red', health: 100, weapons: ['sidearm', 'pulse', 'rockets', 'sniper'], startWeapons: ['sidearm', 'pulse'] },
+    vars: { red: 0, blue: 0 },
+    parts: [
+      { kind: 'part', at: [0, 0, 0], size: [32, 1, 62], material: 'metal' },
+      { kind: 'part', at: [0, 1, -24], size: [18, 1, 8], material: 'stone', color: '#7f1d1d' },
+      { kind: 'part', at: [0, 1, 24], size: [18, 1, 8], material: 'stone', color: '#1d4ed8' },
+      { kind: 'part', id: 'redFlag', at: [0, 3, -24], size: [0.5, 3, 0.5], material: 'neon', color: '#ff4d4d', collide: false },
+      { kind: 'part', id: 'blueFlag', at: [0, 3, 24], size: [0.5, 3, 0.5], material: 'neon', color: '#4d8bff', collide: false },
+      { kind: 'weaponSpawn', at: [10, 1.5, 0], weapon: 'rockets' },
+      { kind: 'weaponSpawn', at: [-10, 1.5, 0], weapon: 'sniper' },
+      { kind: 'healthPack', at: [0, 1.5, 0] },
+      { kind: 'label', at: [0, 8, 0], text: 'SCRIPTED CTF STARTER', scale: 1.1, color: '#ffffff' },
+    ],
+    script: `let booted = false
+const redBase = [0,3,-24]
+const blueBase = [0,3,24]
+
+boxcade.onStart(() => {
+  boxcade.setSpawnPoints([[0,3,-20],[-5,3,-22],[5,3,-22]])
+  boxcade.toast('Starter CTF script: bots push toward the enemy flag.')
+})
+
+boxcade.onTick((time, dt, state) => {
+  if (!state.isHost) return
+  if (!booted) {
+    booted = true
+    for (let i = 0; i < 3; i++) boxcade.spawnBot({ name: 'Blue ' + (i + 1), team: 'blue', skill: 0.45 + i * 0.1, spawns: [[0,3,20],[-5,3,22],[5,3,22]], shirt: '#3b82f6' })
+    for (let i = 0; i < 2; i++) boxcade.spawnBot({ name: 'Red ' + (i + 1), team: 'red', skill: 0.45 + i * 0.1, spawns: [[-5,3,-22],[5,3,-22]], shirt: '#e74c3c' })
+  }
+  for (const e of state.entities) {
+    if (!e.isBot || !e.alive) continue
+    boxcade.entity(e.id).setObjective(e.team === 'red' ? blueBase : redBase)
+  }
+})
+`,
+  }
+}
+
+function makeMiniRoyale(): GameDoc {
+  return {
+    boxcade: 'gamedoc',
+    v: 2,
+    meta: {
+      name: 'Mini Royale',
+      emoji: '🪂',
+      genre: 'Royale',
+      blurb: 'A compact scripted royale starter with drops, loot pads and gas pressure.',
+      gradient: 'linear-gradient(135deg, #2c3a52, #b3543e)',
+    },
+    camera: 'fp',
+    lighting: 'goldenHour',
+    killY: -5,
+    spawn: [0, 35, 0],
+    combat: { selfTeam: 'red', health: 100, weapons: ['sidearm', 'pulse', 'flak', 'rockets'], startWeapons: ['sidearm'] },
+    vars: { gas: 40, alive: 1 },
+    parts: [
+      { kind: 'part', at: [0, 0, 0], size: [70, 2, 70], material: 'grass', color: '#75a558' },
+      { kind: 'water', at: [0, -1.6, 0], size: [120, 1, 120] },
+      { kind: 'part', at: [0, 2, 0], size: [14, 4, 14], material: 'stone' },
+      { kind: 'weaponSpawn', at: [12, 1.5, 8], weapon: 'pulse' },
+      { kind: 'weaponSpawn', at: [-14, 1.5, -12], weapon: 'flak' },
+      { kind: 'weaponSpawn', at: [20, 1.5, -20], weapon: 'rockets' },
+      { kind: 'healthPack', at: [0, 1.5, 18] },
+      { kind: 'ammoSpawn', at: [-18, 1.5, 0] },
+      { kind: 'label', at: [0, 9, 0], text: 'MINI ROYALE', scale: 1.3, color: '#ffe2c4' },
+    ],
+    script: `let booted = false
+let nextGas = 6
+let radius = 40
+const drops = [[-22,35,-22],[22,35,22],[-24,35,18],[18,35,-24]]
+
+boxcade.onStart(() => {
+  boxcade.toast('Mini Royale: loot up and stay near the center.')
+})
+
+boxcade.onTick((time, dt, state) => {
+  if (!state.isHost) return
+  if (!booted) {
+    booted = true
+    for (let i = 0; i < drops.length; i++) {
+      boxcade.spawnBot({ name: 'Dropper ' + (i + 1), team: 'enemy', skill: 0.45 + i * 0.08, spawns: [drops[i]], shirt: '#3b82f6' })
+    }
+    for (const e of state.entities) if (e.isBot) boxcade.entity(e.id).deploy(drops[0])
+  }
+  if (time >= nextGas) {
+    radius = Math.max(8, radius - 4)
+    boxcade.setVar('gas', radius)
+    boxcade.toast('Gas radius: ' + radius)
+    nextGas = time + 8
+  }
+  for (const e of state.entities) {
+    if (!e.alive) continue
+    const p = e.position
+    const outside = Math.hypot(p[0], p[2]) > radius
+    if (outside) boxcade.entity(e.id).hurt(4, 'gas', '☣')
+    if (e.isBot) boxcade.entity(e.id).setObjective([0, 2, 0])
+  }
+})
+`,
+  }
+}
+
 export const TEMPLATES: Template[] = [
   {
     id: 'obby',
@@ -293,5 +461,26 @@ export const TEMPLATES: Template[] = [
     emoji: '🗼',
     blurb: 'A spiraling tower with a button-gated midway and a summit.',
     make: makeTower,
+  },
+  {
+    id: 'waves',
+    name: 'Scripted Waves',
+    emoji: '🌊',
+    blurb: 'A sandboxed-script combat loop with escalating bot waves.',
+    make: makeWaveSurvival,
+  },
+  {
+    id: 'ctf-scripted',
+    name: 'Scripted CTF',
+    emoji: '🚩',
+    blurb: 'Two bases, teams, bots and scripted objectives.',
+    make: makeCtfArena,
+  },
+  {
+    id: 'mini-royale',
+    name: 'Mini Royale',
+    emoji: '🪂',
+    blurb: 'A compact scripted royale with loot and gas pressure.',
+    make: makeMiniRoyale,
   },
 ]
