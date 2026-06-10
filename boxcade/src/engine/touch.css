@@ -1,0 +1,119 @@
+/* Browser touch controls (P7-5). Mounted by attachTouchControls() into the
+   .game-shell host, in tree order BEFORE .hud. Visuals match the HUD:
+   dark translucent fills, 1px #2c3454 borders, backdrop blur. */
+
+.touch-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* container is inert; children opt back in */
+  touch-action: none;   /* never let the browser scroll/zoom from our gestures */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Transparent full-screen look-drag catcher.
+   z-index: auto + inserted before .hud => paints UNDER the HUD, so HUD buttons
+   (pointer-events:auto) above it stay tappable. It only catches taps on empty
+   screen, which is exactly the "look" gesture. */
+.touch-look {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+  background: transparent;
+}
+
+/* Visible controls. z-index: 6 sits ABOVE .hud (z-index auto/0) so buttons are
+   tappable, but BELOW the pause/loading overlay (z-index 10) and shop (z-index 50)
+   so the controls are hidden whenever a modal overlay is open. */
+.touch-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none; /* layer inert; the actual buttons opt in */
+  touch-action: none;
+}
+
+.touch-ui > * {
+  pointer-events: auto;
+}
+
+/* ---- floating joystick ---- */
+.touch-joy {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  margin: -60px 0 0 -60px; /* centre on (left,top) = finger-down point */
+  border-radius: 50%;
+  background: rgba(10, 14, 20, 0.42);
+  border: 1px solid #2c3454;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: none;
+  touch-action: none;
+}
+.touch-joy.on { display: block; }
+
+.touch-joy-nub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 54px;
+  height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(180, 200, 230, 0.28);
+  border: 1px solid #2c3454;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+  will-change: transform;
+}
+
+/* ---- buttons ---- */
+.touch-btn {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(10, 14, 20, 0.55);
+  border: 1px solid #2c3454;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text, #eef3f8);
+  font-family: inherit;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.08s ease, background 0.08s ease;
+}
+.touch-btn.pressed { transform: scale(0.92); background: rgba(30, 40, 54, 0.8); }
+
+.touch-jump {
+  right: 22px;
+  bottom: 28px;
+  width: 64px;
+  height: 64px;
+  font-size: 30px;
+}
+
+.touch-fire {
+  right: 96px;
+  bottom: 96px;
+  width: 76px;
+  height: 76px;
+  font-size: 30px;
+  color: #ff9d9d;
+}
+
+.touch-zoom {
+  right: 30px;
+  bottom: 188px;
+  width: 52px;
+  height: 52px;
+  font-size: 22px;
+}
+.touch-zoom.on {
+  background: rgba(47, 129, 247, 0.32);
+  color: #cfe2ff;
+  border-color: #2f81f7;
+}

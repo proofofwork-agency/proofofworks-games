@@ -1,0 +1,117 @@
+/* Extra editor styling for the GameDoc-backed editor: the meta form, the
+ * gradient swatch picker, and the collapsible "Game Logic" rules panel.
+ * Base editor styles still live in style.css (.editor / .ed-*). This file is
+ * imported from editor.ts and must not duplicate or override style.css rules. */
+
+/* ---- meta form (above the canvas) ---- */
+.ed-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid #1f2a37;
+  border-radius: 12px;
+}
+.ed-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+.ed-meta-field input,
+.ed-meta-field select {
+  background: var(--bg); color: var(--text); border: 1px solid #2c3a4b;
+  border-radius: 8px; padding: 6px 9px; font-size: 13px;
+  text-transform: none; letter-spacing: 0;
+}
+.ed-meta-field.name input { width: 180px; }
+.ed-meta-field.emoji input { width: 54px; text-align: center; font-size: 16px; }
+.ed-meta-field.genre select { width: 130px; }
+.ed-meta-field.blurb { flex: 1; min-width: 180px; }
+.ed-meta-field.blurb input { width: 100%; }
+
+/* ---- gradient swatch picker ---- */
+.ed-gradients { display: flex; gap: 6px; }
+.ed-grad-sw {
+  width: 30px; height: 24px; border-radius: 7px; cursor: pointer; padding: 0;
+  border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.ed-grad-sw.sel { border-color: var(--text); }
+
+/* ---- "Game Logic" rules panel (third column) ---- */
+.ed-rules {
+  width: 290px; flex-shrink: 0; border-left: 1px solid #1f2a37;
+  padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+}
+.ed-rules.collapsed { width: 44px; padding: 14px 6px; overflow: hidden; }
+.ed-rules-head {
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+}
+.ed-rules-head h3 { font-size: 15px; margin: 0; white-space: nowrap; }
+.ed-rules.collapsed .ed-rules-head h3,
+.ed-rules.collapsed .ed-rules-body { display: none; }
+.ed-rules-toggle {
+  background: transparent; border: 1px solid #2c3a4b; color: var(--text);
+  border-radius: 8px; padding: 4px 9px; cursor: pointer; font-size: 13px;
+}
+.ed-rules-body { display: flex; flex-direction: column; gap: 10px; }
+.ed-rule {
+  background: var(--card); border: 1px solid #2c3a4b; border-radius: 10px;
+  padding: 10px; display: flex; flex-direction: column; gap: 7px;
+}
+.ed-rule-line { display: flex; align-items: center; gap: 6px; }
+.ed-rule-line .lead { font-size: 11px; color: var(--muted); width: 42px; flex-shrink: 0; }
+.ed-rule select,
+.ed-rule input {
+  flex: 1; min-width: 0; background: var(--bg); color: var(--text);
+  border: 1px solid #2c3a4b; border-radius: 8px; padding: 5px 8px; font-size: 12.5px;
+}
+.ed-rule .ed-rule-param { display: flex; gap: 6px; }
+.ed-rule-del {
+  align-self: flex-end; background: transparent; border: 1px solid #5e3a3a;
+  color: #ff9d9d; border-radius: 8px; padding: 3px 9px; cursor: pointer; font-size: 12px;
+}
+.ed-rule-hint { font-size: 11px; color: #5b6878; line-height: 1.35; }
+.ed-rule-add {
+  background: transparent; border: 1px dashed #3a4a5e; color: var(--muted);
+  border-radius: 10px; padding: 8px; cursor: pointer; font-size: 13px;
+}
+.ed-rule-add:hover { color: var(--text); border-color: var(--accent); }
+.ed-err { color: #ff8d8d; font-size: 12px; line-height: 1.4; margin: 0; }
+.ed-rules-note { font-size: 11.5px; color: #5b6878; line-height: 1.4; }
+
+/* a small inline status line shared by Copy-link / save messages */
+.ed-status { font-size: 12px; color: var(--accent); min-height: 16px; }
+.ed-status.warn { color: #ffcf6b; }
+
+/* tool positioning hint next to the editor title */
+.ed-sub-title { font-size: 11px; font-weight: 500; color: #5d6a96; margin-left: 8px; }
+
+/* ---- mountFloorPlan component (shared by #/editor and the Studio overlay) ----
+ * The painter lays out as palette (left) + grid/text (center). Standalone
+ * #/editor wraps it in .ed-floorplan inside .ed-main; the Studio drops it into
+ * a full-viewport overlay (.studio-floorplan, styled in studio.css). */
+.ed-floorplan { flex: 1; min-width: 0; display: flex; }
+.fp-root { flex: 1; min-width: 0; display: flex; min-height: 0; }
+.fp-side {
+  width: 250px; flex-shrink: 0; padding: 14px; overflow-y: auto;
+  border-right: 1px solid #1f2a37; display: flex; flex-direction: column; gap: 8px;
+}
+.fp-center { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 14px 18px; gap: 10px; overflow-y: auto; }
+.fp-head { display: flex; align-items: center; gap: 8px; }
+.fp-title { font-size: 14px; font-weight: 700; color: var(--text); }
+.fp-close { margin-left: auto; }
+.fp-side .ed-fields { display: flex; flex-direction: column; gap: 6px; }
+.fp-side .ed-select { width: 100%; }
+
+/* the grid lives in a scrollable wrap so big maps pan/scroll instead of
+ * shrinking; Space-drag and middle-drag set the grab/grabbing cursor */
+#fpCanvas { display: block; cursor: crosshair; image-rendering: pixelated; }
+.fp-center .ed-canvas-wrap { flex: 1; min-height: 220px; max-width: 100%; max-height: 60vh; }
+.ed-canvas-wrap.grab, .ed-canvas-wrap.grab #fpCanvas { cursor: grab; }
+.ed-canvas-wrap.grabbing, .ed-canvas-wrap.grabbing #fpCanvas { cursor: grabbing; }

@@ -1,0 +1,27 @@
+{
+  "name": "boxcade",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Boxcade — a free browser game platform & engine: blocky multiplayer worlds, a tiny game SDK, and AAA-style lighting.",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "client": "vite",
+    "server": "node server/server.mjs",
+    "bot-load": "node scripts/bot-load.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "three": "0.169.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.169.0",
+    "typescript": "~5.6.2",
+    "vite": "^5.4.8",
+    "vitest": "^4.1.8"
+  }
+}

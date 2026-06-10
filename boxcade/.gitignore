@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+.vite/
+server/*.db
+server/*.db-shm
+server/*.db-wal
+.engram/
+.contextrelay/
+*.tgz
