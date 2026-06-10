@@ -1,0 +1,77 @@
+/* ---------- My Games (local draft shelf) ----------
+   Owned by portal.ts. The built-in game grid keeps its .game-card styling in
+   style.css; this is the compact, horizontal "your creations" shelf that sits
+   between the player row and that grid. */
+
+.mygames {
+  margin-bottom: 36px;
+  border-radius: var(--radius);
+  transition: box-shadow 0.15s, background 0.15s;
+}
+/* drag-drop affordance — the whole shelf is a drop target for .boxcade.json */
+.mygames.drop {
+  background: rgba(0, 194, 114, 0.06);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 8px rgba(0, 194, 114, 0.12);
+}
+
+.mygames-head {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+}
+.mygames-head h2 { font-size: 22px; letter-spacing: -0.4px; }
+.mygames-head .spacer { flex: 1; }
+
+/* friendly one-liner when the shelf is empty */
+.mygames-empty {
+  color: var(--muted); font-size: 14px; line-height: 1.5;
+  padding: 2px 0 2px;
+}
+
+/* the cards themselves: compact horizontal tiles, auto-fill grid */
+.draft-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.draft-card {
+  background: var(--card); border: 1px solid #26313f; border-radius: 14px;
+  padding: 14px; display: flex; gap: 14px; align-items: flex-start;
+  transition: background 0.15s, border-color 0.15s;
+}
+.draft-card:hover { background: var(--card-hover); border-color: #34465c; }
+.draft-emoji {
+  width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 30px;
+  background: linear-gradient(135deg, #243244, #1a2330);
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.draft-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.draft-name {
+  font-size: 16px; font-weight: 700; letter-spacing: -0.2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.draft-sub { color: var(--muted); font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.draft-sub .draft-genre { text-transform: uppercase; letter-spacing: 0.6px; }
+.draft-sub .dot { opacity: 0.5; }
+
+/* per-card action row — reuses .btn.small / .btn.small.ghost from style.css */
+.draft-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.draft-actions .btn.tiny {
+  padding: 5px 11px; font-size: 12px;
+}
+.draft-actions .btn.danger {
+  color: var(--danger); border-color: rgba(255, 93, 93, 0.5);
+}
+.draft-actions .btn.danger.armed {
+  background: var(--danger); color: #2a0606; border-color: var(--danger); font-weight: 700;
+}
+
+/* inline status line under the actions (Copied! / errors / too-big notice) */
+.draft-note { font-size: 12px; margin-top: 8px; min-height: 1em; line-height: 1.4; }
+.draft-note.ok { color: var(--accent); }
+.draft-note.err { color: var(--danger); }
+.draft-note.info { color: #ffd97a; }
+
+/* shelf-level note (import errors land here when no card is involved) */
+.mygames-note { font-size: 12.5px; margin-top: 10px; min-height: 1em; }
+.mygames-note.ok { color: var(--accent); }
+.mygames-note.err { color: var(--danger); }
+.mygames-note.info { color: #ffd97a; }

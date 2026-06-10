@@ -1,0 +1,214 @@
+/* Boxcade Studio layout: viewport fills the screen; palette left, panels
+   right, toolbar top — all floating over the 3D view. */
+
+.studio-shell { position: fixed; inset: 0; overflow: hidden; background: #0c0f1d; }
+.studio-viewport { position: absolute; inset: 0; }
+.studio-viewport canvas { display: block; }
+
+.studio-top {
+  position: absolute; top: 10px; left: 12px; right: 12px; z-index: 5;
+  display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; overflow-x: auto;
+  background: rgba(13, 17, 32, 0.82); border: 1px solid #2c3454;
+  border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(8px);
+  scrollbar-width: thin;
+}
+.studio-top .st-name {
+  flex: 1 0 160px; min-width: 120px; max-width: 340px;
+  background: #121831; border: 1px solid #2c3454; color: #e8ecf6;
+  border-radius: 8px; padding: 7px 10px; font-weight: 700; font-size: 14px;
+}
+.st-saved { color: #39d98a; font-size: 12px; min-width: 52px; }
+.st-chip {
+  color: #aab4d4; font-size: 11.5px; padding: 3px 8px; border-radius: 999px;
+  background: #121831; border: 1px solid #2c3454; white-space: nowrap;
+}
+.st-snap { font-size: 11.5px; white-space: nowrap; }
+.st-mode { white-space: nowrap; }
+.st-mode.sel { background: #5d6df1; color: #fff; border-color: #5d6df1; }
+
+.studio-palette {
+  position: absolute; top: 70px; bottom: 14px; left: 12px; width: 168px; z-index: 4;
+  background: rgba(13, 17, 32, 0.82); border: 1px solid #2c3454; border-radius: 12px;
+  padding: 10px; overflow-y: auto; backdrop-filter: blur(8px);
+}
+.studio-palette h3 { margin: 2px 0 6px; font-size: 13px; color: #aab4d4; }
+.st-group { margin: 10px 0 4px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d6a96; }
+.st-group-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.st-pal {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: #121831; border: 1px solid #2c3454; color: #c9d4ff;
+  border-radius: 10px; padding: 7px 4px; cursor: pointer; font-size: 11px;
+}
+.st-pal:hover { border-color: #5d6df1; }
+.st-pal.armed { border-color: #ffd166; background: #1c2138; box-shadow: 0 0 0 1px #ffd166 inset; }
+.st-pal-icon { font-size: 18px; }
+.st-hint { color: #5d6a96; font-size: 11.5px; line-height: 1.45; margin: 10px 0 0; }
+
+.studio-side {
+  position: absolute; top: 70px; bottom: 14px; right: 12px; width: clamp(252px, 26vw, 340px); z-index: 4;
+  display: flex; flex-direction: column;
+  background: rgba(13, 17, 32, 0.82); border: 1px solid #2c3454; border-radius: 12px;
+  backdrop-filter: blur(8px); overflow: hidden;
+}
+.st-tabs { display: flex; gap: 4px; padding: 8px 8px 0; }
+.st-tab {
+  flex: 1 1 0; min-width: 0; padding: 7px 4px;
+  border-radius: 8px; font-size: 11.5px; white-space: nowrap;
+}
+.st-tab.sel { background: #5d6df1; color: #fff; border-color: #5d6df1; }
+.st-body { padding: 10px; overflow-y: auto; flex: 1; }
+.st-body h3 { margin: 10px 0 6px; font-size: 13px; color: #aab4d4; }
+.st-body h3:first-child { margin-top: 0; }
+
+.st-row { display: flex; align-items: center; gap: 6px; margin: 5px 0; }
+.st-row > label { width: 70px; flex: none; font-size: 11.5px; color: #82a0c8; }
+.st-row-controls { display: flex; gap: 4px; flex: 1; align-items: center; flex-wrap: wrap; }
+.st-num { width: 52px; background: #121831; border: 1px solid #2c3454; color: #e8ecf6; border-radius: 6px; padding: 4px 5px; font-size: 12px; }
+.st-text { flex: 1; min-width: 80px; background: #121831; border: 1px solid #2c3454; color: #e8ecf6; border-radius: 6px; padding: 5px 7px; font-size: 12px; }
+.st-script {
+  width: 100%; min-height: 320px; resize: vertical; box-sizing: border-box;
+  background: #080c18; border: 1px solid #2c3454; color: #e8ecf6;
+  border-radius: 8px; padding: 9px; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.st-code-editor {
+  background: #080c18; border: 1px solid #2c3454; border-radius: 8px;
+  overflow: hidden; margin-top: 8px;
+}
+.st-code-editor .st-script {
+  border: 0; border-radius: 0; margin: 0; min-height: 340px;
+}
+.st-code-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 8px; border-bottom: 1px solid #2c3454; background: #101529;
+}
+.st-code-status { color: #82a0c8; font-size: 11.5px; white-space: nowrap; flex: 1; }
+.st-select { background: #121831; border: 1px solid #2c3454; color: #e8ecf6; border-radius: 6px; padding: 4px 5px; font-size: 12px; max-width: 130px; }
+.st-color { width: 40px; height: 26px; padding: 0; border: 1px solid #2c3454; border-radius: 6px; background: #121831; }
+.st-actions { display: flex; gap: 6px; margin-top: 12px; }
+.st-mode-note {
+  background: #101529; border: 1px solid #2c3454; border-radius: 8px;
+  color: #c9d4ff; font-size: 11.5px; line-height: 1.4; padding: 7px 8px; margin: 8px 0;
+}
+.st-analysis {
+  background: #080c18; border: 1px solid #2c3454; border-radius: 8px;
+  padding: 7px 8px; margin-top: 10px; font-size: 11.5px; color: #aab4d4;
+}
+.st-analysis p { margin: 4px 0 0; line-height: 1.35; }
+.st-analysis-title { color: #e8ecf6; font-weight: 700; font-size: 12px; }
+.st-api-ref {
+  background: #101529; border: 1px solid #2c3454; border-radius: 8px;
+  padding: 8px; margin-top: 10px;
+}
+.st-api-ref summary {
+  color: #e8ecf6; cursor: pointer; font-weight: 700; font-size: 12px;
+}
+.st-api-list { display: grid; gap: 5px; margin-top: 8px; }
+.st-api-item {
+  display: grid; gap: 2px; width: 100%; text-align: left;
+  background: #080c18; border: 1px solid #2c3454; color: #aab4d4;
+  border-radius: 7px; padding: 6px; font-size: 11px;
+}
+button.st-api-item { cursor: pointer; }
+button.st-api-item:hover { border-color: #5d6df1; }
+.st-api-item code {
+  color: #ffd166; font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: normal; overflow-wrap: anywhere;
+}
+.st-api-item span { line-height: 1.35; }
+
+.st-swatches { display: flex; gap: 5px; }
+.st-swatch { width: 26px; height: 26px; border-radius: 7px; border: 2px solid transparent; cursor: pointer; }
+.st-swatch.sel { border-color: #ffd166; }
+
+.st-rule { background: #101529; border: 1px solid #2c3454; border-radius: 10px; padding: 7px 8px; margin: 7px 0; }
+.st-rule-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.st-rule-n { font-size: 11px; color: #5d6a96; }
+.st-rule-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+.st-kw { font-size: 11px; color: #ffd166; font-weight: 700; }
+
+/* section sub-headers, inline validation, weapon names */
+.st-sub { margin: 9px 0 3px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #5d6a96; }
+.st-warn { color: #ff7a7a; font-size: 11px; margin: 2px 0 4px; min-height: 0; }
+.st-warn:empty { display: none; }
+.st-wname { flex: 1; font-size: 12px; color: #c9d4ff; }
+
+/* checkbox checklists (combat arsenal / start weapons) */
+.st-checks { display: flex; flex-wrap: wrap; gap: 5px 10px; margin: 2px 0 6px; }
+.st-check { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: #c9d4ff; cursor: pointer; }
+.st-check input { margin: 0; }
+.st-everyone { color: #82a0c8; }
+
+.studio-toast {
+  position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 8;
+  background: rgba(13, 17, 32, 0.92); border: 1px solid #5d6df1; color: #e8ecf6;
+  padding: 9px 16px; border-radius: 10px; font-size: 13px; max-width: 70vw;
+  animation: studio-toast-in 0.18s ease-out;
+}
+@keyframes studio-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+/* ----- in-Studio floor-plan workspace -----
+ * A first-class Studio mode below the shared top bar. The 3D scene still
+ * rebuilds behind it, but Studio build panels and pointer input are disabled. */
+.studio-shell.floorplan-mode .studio-palette,
+.studio-shell.floorplan-mode .studio-side {
+  display: none;
+}
+.studio-shell.floorplan-mode .studio-viewport {
+  pointer-events: none;
+}
+.studio-floorplan {
+  position: absolute; top: 64px; left: 12px; right: 12px; bottom: 14px; z-index: 4;
+  display: flex; overflow: hidden;
+  background: rgba(11, 15, 28, 0.94); border: 1px solid #2c3454; border-radius: 12px;
+  backdrop-filter: blur(10px);
+}
+.studio-floorplan[hidden] { display: none; }
+/* the painter fills the overlay; tighten its borders to the dark studio theme */
+.studio-floorplan .fp-side { border-right-color: #2c3454; }
+.studio-floorplan .ed-canvas-wrap { max-height: none; }
+.studio-floorplan .fp-close { display: none; }
+
+.studio-shell.script-editor-expanded .studio-palette {
+  display: none;
+}
+.studio-shell.script-editor-expanded .studio-side {
+  left: 12px; right: 12px; width: auto;
+}
+.studio-shell.script-editor-expanded .st-body {
+  display: grid; grid-template-rows: auto auto auto 1fr auto auto; min-height: 0;
+}
+.studio-shell.script-editor-expanded .st-code-editor {
+  display: flex; flex-direction: column; min-height: 0;
+}
+.studio-shell.script-editor-expanded .st-code-editor .st-script {
+  flex: 1; min-height: 52vh; resize: none;
+}
+.studio-shell.script-editor-expanded .st-api-ref {
+  max-height: 220px; overflow: auto;
+}
+
+@media (max-width: 760px) {
+  .studio-top { left: 8px; right: 8px; top: 8px; }
+  .studio-palette {
+    top: 64px; bottom: calc(42vh + 20px); left: 8px; width: min(156px, 42vw);
+  }
+  .studio-side {
+    left: 8px; right: 8px; bottom: 8px; top: auto; width: auto;
+    height: min(42vh, 360px);
+  }
+  .studio-shell.script-editor-expanded .studio-side {
+    top: 64px; bottom: 8px; height: auto;
+  }
+  .studio-shell.script-editor-expanded .st-code-editor .st-script {
+    min-height: 42vh;
+  }
+}
+
+@media (max-width: 420px) {
+  .studio-top .st-name { flex-basis: 130px; }
+  .studio-palette {
+    top: 64px; bottom: calc(46vh + 18px); width: calc(100vw - 16px); max-height: 170px;
+  }
+  .studio-palette .st-group-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .studio-side { height: min(46vh, 380px); }
+}
