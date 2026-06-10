@@ -1,0 +1,15 @@
+{
+  "name": "proof-of-works-games",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": [
+    "*"
+  ],
+  "scripts": {
+    "boxcade:dev": "npm --workspace boxcade run dev",
+    "boxcade:client": "npm --workspace boxcade run client",
+    "boxcade:test": "npm --workspace boxcade test",
+    "boxcade:build": "npm --workspace boxcade run build"
+  }
+}
+
