@@ -18,6 +18,7 @@ import {
   createGame, updateGame, unpublishGame, getGame, getGameMeta, listGames,
   bumpPlay, likeGame, reportGame, adminSetHidden, adminList,
   getEarnings, claimEarnings, creditStoreEarnings, submitScore, topScores,
+  validImageThumb,
 } from './db.mjs'
 
 const MAX_BODY = 300 * 1024
@@ -60,6 +61,26 @@ setInterval(() => {
 const cleanText = (s, max) =>
   String(s ?? '').replace(/[^\w \-–—.,!?'"():;@#%&+*/€$☆★a-zA-Z0-9À-ɏḀ-ỿ\p{Emoji}]/gu, '').slice(0, max).trim()
 
+// IP-literal hosts in loopback/private/link-local ranges: a published embed
+// would point every viewer's browser at LAN/loopback targets, so reject at
+// publish time. (Named internal hosts can't be detected without DNS — the
+// admin-approval gate covers those.)
+function isPrivateIpHost(hostname) {
+  const h = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)
+  if (v4) {
+    const a = Number(v4[1])
+    const b = Number(v4[2])
+    return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)
+  }
+  if (h.includes(':')) {
+    // IPv6 literal: loopback, unspecified, unique-local (fc/fd), link-local (fe80–febf)
+    return h === '::1' || h === '::' || h.startsWith('fc') || h.startsWith('fd') || /^fe[89ab]/.test(h)
+  }
+  return false
+}
+
 export function validateEmbedUrl(input) {
   if (typeof input !== 'string' || input.length > 2048) return null
   let url
@@ -68,9 +89,18 @@ export function validateEmbedUrl(input) {
   } catch {
     return null
   }
-  if (url.protocol === 'https:') return url.href
-  if (url.protocol === 'http:' && url.hostname === 'localhost') return url.href
+  if (url.username || url.password) return null // no credential smuggling
+  if (url.protocol === 'https:') return isPrivateIpHost(url.hostname) ? null : url.href
+  if (url.protocol === 'http:' && url.hostname === 'localhost') return url.href // dev carve-out
   return null
+}
+
+/** drop thumbnails that aren't small raster data-URIs before they're stored */
+function stripInvalidThumb(doc) {
+  if (doc && typeof doc === 'object' && doc.meta && typeof doc.meta === 'object' &&
+      doc.meta.thumb !== undefined && !validImageThumb(doc.meta.thumb)) {
+    delete doc.meta.thumb
+  }
 }
 
 /** light server-side doc sanity (full validation happens client-side on play) */
@@ -212,6 +242,7 @@ export async function handleApi(req, res) {
         send(res, 201, out)
         return true
       }
+      stripInvalidThumb(body.doc)
       const docText = JSON.stringify(body.doc ?? null)
       const err = checkDoc(docText)
       if (err) return send(res, 400, { error: err }), true
@@ -232,6 +263,7 @@ export async function handleApi(req, res) {
         return true
       }
       const body = await readBody(req)
+      stripInvalidThumb(body.doc)
       const docText = JSON.stringify(body.doc ?? null)
       const err = checkDoc(docText)
       if (err) return send(res, 400, { error: err }), true

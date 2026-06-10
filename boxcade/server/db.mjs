@@ -67,6 +67,14 @@ export function newToken() {
   return randomBytes(24).toString('base64url')
 }
 
+// thumbnails must be small raster data-URIs — SVG data-URIs can carry markup/
+// script, so they are dropped at both the write and read boundaries
+const THUMB_PREFIXES = ['data:image/png;base64,', 'data:image/jpeg;base64,', 'data:image/webp;base64,']
+export const THUMB_MAX = 80_000
+export function validImageThumb(s) {
+  return typeof s === 'string' && s.length <= THUMB_MAX && THUMB_PREFIXES.some((p) => s.startsWith(p))
+}
+
 export function createGame({ doc, name, author, type = 'game', url = '', hidden = false }) {
   const id = newId()
   const token = newToken()
@@ -127,7 +135,7 @@ export function getGameMeta(id) {
     emoji = typeof meta.emoji === 'string' ? meta.emoji.slice(0, 8) : emoji
     gradient = typeof meta.gradient === 'string' ? meta.gradient.slice(0, 200) : ''
     blurb = typeof meta.blurb === 'string' ? meta.blurb.slice(0, 140) : ''
-    thumb = typeof meta.thumb === 'string' && meta.thumb.startsWith('data:image/') ? meta.thumb : ''
+    thumb = validImageThumb(meta.thumb) ? meta.thumb : ''
   } catch { /* corrupt docs render with defaults */ }
   return { emoji, gradient, thumb, blurb }
 }

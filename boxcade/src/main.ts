@@ -78,6 +78,7 @@ function renderEmbedHost(game: PublishedGame) {
   const frame = document.createElement('iframe')
   frame.src = game.url
   frame.sandbox.add('allow-scripts')
+  frame.referrerPolicy = 'no-referrer'
   frame.title = game.name
   frame.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;'
 

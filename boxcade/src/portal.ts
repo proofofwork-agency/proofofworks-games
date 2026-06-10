@@ -492,7 +492,8 @@ function downloadDoc(doc: object, name: string): void {
 // ---------------- Community games (published gallery) ----------------
 // Server-backed discovery. When the server is unreachable the section simply
 // doesn't render — the portal works fully offline. ALL user content (names,
-// authors, blurbs) renders via textContent; thumbnails must be data:image/*.
+// authors, blurbs) renders via textContent; thumbnails must be raster
+// data-URIs (png/jpeg/webp — SVG data-URIs can carry markup, so they're out).
 
 async function renderCommunity(mountEl: HTMLElement, sort: 'new' | 'plays' | 'likes') {
   let games: CommunityGame[]
@@ -547,9 +548,9 @@ async function renderCommunity(mountEl: HTMLElement, sort: 'new' | 'plays' | 'li
         </div>
       </div>`
 
-    // USER CONTENT — textContent only; thumbs only when they are data images
+    // USER CONTENT — textContent only; thumbs only when they are raster data images
     const thumbEl = card.querySelector('.game-thumb') as HTMLElement
-    if (g.thumb && g.thumb.startsWith('data:image/')) {
+    if (g.thumb && /^data:image\/(png|jpeg|webp);base64,/.test(g.thumb)) {
       const img = document.createElement('img')
       img.src = g.thumb
       img.alt = ''
