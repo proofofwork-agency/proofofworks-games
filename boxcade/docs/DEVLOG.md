@@ -20,6 +20,11 @@
   respawn overlay — folded in as part of the HUD concern). Composition root
   keeps vehicles, remote LOD, and voxel co-build sync inline (physics-order
   coupled). Pure refactor: tsc clean, 168/168, zero console errors.
+  Codex read-only review of `febb99f`: PASS, no findings (checked closure
+  ownership, listener ordering, frame positions, chud capture; re-ran
+  tsc + vitest independently). Noted coverage caveat: no dedicated
+  DOM/lifecycle unit tests for the new systems' disposal — browser gates
+  cover the behavior; candidate for a future test lane.
 - Gate (chrome-devtools): Sky Obby — HUD chips + fps meter live, `/` chat
   sent "decomposition smoke test" into Room JZ8W, Escape pause + Resume;
   Voxel Island — crosshair + 8-slot hotbar, key `3` selected Stone;
