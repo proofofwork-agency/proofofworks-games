@@ -5,4 +5,4 @@ Games monorepo for Proof of Works projects.
 ## Workspaces
 
 - `boxcade` — browser-first blocky game platform and studio.
-
+- `fresh-prince-of-persia` — static Three.js 2.5D platformer.

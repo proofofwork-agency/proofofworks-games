@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Fresh Prince of Persia</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Bungee+Shade&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #ffd54a;
+    --magenta: #ff2d95;
+    --cyan: #19e3ff;
+    --bg: #07041a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); }
+  body { font-family: 'Bungee', sans-serif; color: #fff; }
+  #game { display: block; width: 100vw; height: 100vh; }
+
+  .layer { position: fixed; inset: 0; pointer-events: none; }
+  #vignette { background: radial-gradient(ellipse at center, transparent 55%, rgba(4,2,14,0.55) 100%); }
+  #scan {
+    background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.022) 0 1px, transparent 1px 3px);
+    mix-blend-mode: overlay;
+  }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hud .top {
+    position: absolute; top: 14px; left: 20px; right: 20px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  }
+  #lvl-name { font-size: 17px; color: var(--gold); letter-spacing: 1px; }
+  #lvl-sub { font-size: 10px; color: var(--cyan); opacity: 0.85; margin-top: 3px; letter-spacing: 2px; }
+  #timer {
+    font-size: 26px; color: #fff;
+    text-shadow: 0 0 14px rgba(255,213,74,0.6), 0 2px 8px rgba(0,0,0,0.8);
+  }
+  #timer.low { color: var(--magenta); animation: pulse 0.8s infinite; }
+  @keyframes pulse { 50% { opacity: 0.45; } }
+  #tapes { font-size: 12px; color: var(--magenta); letter-spacing: 1px; text-align: right; }
+
+  .bottom-bar {
+    position: absolute; bottom: 16px; left: 24px; right: 24px;
+    display: flex; justify-content: space-between; align-items: flex-end;
+  }
+  .link {
+    display: inline-block; width: 17px; height: 17px; margin-right: 5px;
+    border-radius: 5px;
+    background: linear-gradient(135deg, #ffe9a3, var(--gold) 55%, #b8860b);
+    box-shadow: 0 0 10px rgba(255,213,74,0.75), inset 0 1px 1px rgba(255,255,255,0.6);
+  }
+  .link.off { background: #241c33; box-shadow: inset 0 1px 3px rgba(0,0,0,0.8); }
+  .link.foe { border-radius: 50%; background: linear-gradient(135deg, #ff8aa8, var(--magenta) 55%, #8e1040);
+    box-shadow: 0 0 10px rgba(255,45,149,0.7), inset 0 1px 1px rgba(255,255,255,0.5); }
+  .link.foe.off { background: #2c1322; box-shadow: inset 0 1px 3px rgba(0,0,0,0.8); }
+  #enemy { text-align: right; }
+  #enemy.hidden { display: none; }
+  #ename { font-size: 11px; color: var(--magenta); margin-bottom: 6px; letter-spacing: 1px;
+    text-shadow: 0 0 10px rgba(255,45,149,0.6); }
+  #ehearts .link { margin-right: 0; margin-left: 5px; }
+
+  #toast {
+    position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(12px);
+    font-size: 14px; color: var(--gold); letter-spacing: 1px; text-align: center;
+    text-shadow: 0 0 16px rgba(255,213,74,0.65), 0 2px 6px rgba(0,0,0,0.9);
+    opacity: 0; transition: opacity 0.25s, transform 0.25s;
+    max-width: 80vw;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  #overlay {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px;
+    background: rgba(5,3,16,0.55); backdrop-filter: blur(5px);
+    pointer-events: none; text-align: center;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h2 {
+    font-size: 44px; color: var(--gold); letter-spacing: 2px;
+    text-shadow: 0 0 30px rgba(255,213,74,0.8), 4px 4px 0 #57129b;
+  }
+  #overlay p { font-size: 14px; color: var(--cyan); letter-spacing: 2px; }
+  #overlay .press { color: #fff; animation: pulse 1.2s infinite; margin-top: 10px; }
+
+  #title-screen {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 18px; text-align: center;
+    background: rgba(6,3,18,0.62); backdrop-filter: blur(6px);
+  }
+  #title-screen.hidden { display: none; }
+  .crown { font-size: 42px; color: var(--gold); text-shadow: 0 0 26px rgba(255,213,74,0.9);
+    animation: bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-7px) rotate(-4deg); } }
+  h1 { line-height: 1.05; }
+  h1 .l1 {
+    display: block; font-size: clamp(34px, 7vw, 72px); letter-spacing: 2px;
+    background: linear-gradient(180deg, #fff3c4, var(--gold) 45%, #c8860d 80%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 22px rgba(255,213,74,0.45)) drop-shadow(4px 5px 0 #57129b);
+  }
+  h1 .l2 {
+    display: block; font-family: 'Bungee Shade', 'Bungee', sans-serif;
+    font-size: clamp(22px, 4.6vw, 46px); color: var(--magenta); letter-spacing: 6px;
+    text-shadow: 0 0 24px rgba(255,45,149,0.75);
+    margin-top: 6px;
+  }
+  .tagline { font-size: 12px; color: var(--cyan); letter-spacing: 3px; max-width: 640px; line-height: 1.9; }
+  .controls {
+    font-size: 11px; color: #cdc6ee; letter-spacing: 1.5px; line-height: 2.1;
+    border: 1px solid rgba(255,213,74,0.35); border-radius: 12px;
+    padding: 12px 26px; background: rgba(12,7,32,0.55);
+  }
+  .controls b { color: var(--gold); }
+  .start { font-size: 17px; color: #fff; letter-spacing: 3px; animation: pulse 1.2s infinite; margin-top: 4px; }
+  .credit { font-size: 9px; color: #6f679b; letter-spacing: 1.5px; max-width: 600px; line-height: 1.8; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="vignette" class="layer"></div>
+  <div id="scan" class="layer"></div>
+
+  <div id="hud">
+    <div class="top">
+      <div><div id="lvl-name">LEVEL 1</div><div id="lvl-sub"></div></div>
+      <div id="timer">8:00</div>
+      <div id="tapes">⏵ TAPES 0/0</div>
+    </div>
+    <div class="bottom-bar">
+      <div id="hearts"></div>
+      <div id="enemy" class="hidden">
+        <div id="ename"></div>
+        <div id="ehearts"></div>
+      </div>
+    </div>
+    <div id="toast"></div>
+  </div>
+
+  <div id="overlay" class="hidden"></div>
+
+  <div id="title-screen">
+    <div class="crown">♛</div>
+    <h1>
+      <span class="l1">THE FRESH PRINCE</span>
+      <span class="l2">OF PERSIA</span>
+    </h1>
+    <p class="tagline">
+      DJ VIZIER LOCKED DOWN THE PALACE OF PERSEPOLIS HEIGHTS AND STOLE THE GOLDEN MIXTAPE.<br>
+      SEVEN FLOORS. EIGHT MINUTES BEFORE THE BEAT DROPS FOREVER. RUN. CLIMB. CLASH. STAY FRESH.
+    </p>
+    <div class="controls">
+      <b>&#8592;&#8594;</b> / <b>A D</b> RUN &nbsp;·&nbsp; <b>SPACE</b> / <b>&#8593;</b> JUMP + CLIMB &nbsp;·&nbsp; <b>&#8595;</b> LET GO<br>
+      <b>X</b> SWING SWORD &nbsp;·&nbsp; <b>C</b> BLOCK &nbsp;·&nbsp; <b>M</b> MUTE &nbsp;·&nbsp; <b>R</b> RESTART LEVEL
+    </div>
+    <div class="start">PRESS ENTER</div>
+    <p class="credit">
+      A 2.5D HOMAGE TO JORDAN MECHNER'S PRINCE OF PERSIA (1989). FAN PARODY, NOT FOR SALE.<br>
+      ALL CODE, MODELS AND MUSIC ARE ORIGINAL AND SYNTHESIZED LIVE IN YOUR BROWSER.
+    </p>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
