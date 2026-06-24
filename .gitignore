@@ -5,3 +5,7 @@ dist/
 coverage/
 *.log
 
+# Agent collaboration tooling (ContextRelay / Engram) — never commit
+.contextrelay/
+.engram/
+
