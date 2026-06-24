@@ -1,0 +1,42 @@
+// ============================================================
+//  CHOMP MAZE — a pellet-maze level drawn entirely in text.
+//  Edit this file and save: the game hot-reloads instantly.
+//
+//  PAC-MAN-INSPIRED tile vocabulary (this map only):
+//    n  neon maze wall (tall, glowing blue)
+//    p  floor tile + hovering pellet (collect them all to win)
+//    o  power pellet (eat a ghost while it's charged!)
+//    g  ghost-house floor (dark)
+//    d  ghost-house door (glowing strip)
+//    .  void (falling = death)  — unused here; the maze is enclosed
+//
+//  Directives: @lighting @cell @layerstep @killy
+// ============================================================
+@lighting night
+@cell 2
+@layerstep 4
+@killy -14
+
+nnnnnnnnnnnnnnnnnnnnn
+nopppppppppppppppppon
+npnnnppnnnpnnnppnnnpn
+npnnnppnnnpnnnppnnnpn
+npppppppppppppppppppn
+npnnnppnnnpnnnppnnnpn
+npnnnppnnnpnnnppnnnpn
+npnnnppnnnpnnnppnnnpn
+npppppppppppppppppppn
+nnnnnnpnnndnnnpnnnnnn
+npppppppngggnpppppppn
+npppppppngggnpppppppn
+npppppppnnnnnpppppppn
+npppppppppppppppppppn
+npnnnppnnnnnnnppnnnpn
+npnnnppnnnnnnnppnnnpn
+npppppppppnpppppppppn
+npppppppppppppppppppn
+npnnnppnnnpnnnppnnnpn
+npnnnppnnnpnnnppnnnpn
+npppppppppppppppppppn
+nopppppppppppppppppon
+nnnnnnnnnnnnnnnnnnnnn

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Steel Storm — Tank Battle</title>
+    <meta name="description" content="Steel Storm: a top-down tank battle. Defend the HQ, blast enemy armor, survive the waves." />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='6' y='6' width='88' height='88' rx='14' fill='%23233'/><rect x='30' y='30' width='40' height='40' rx='6' fill='%23f4d23c'/><rect x='48' y='18' width='4' height='30' fill='%23f4d23c'/></svg>" />
+    <style>
+      :root {
+        --field: #0b0f14;
+        --ink: #e7eef5;
+        --gold: #ffd24a;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        height: 100%;
+        background: var(--field);
+        overflow: hidden;
+        font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+      #app {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(1200px 700px at 50% -10%, #15202b 0%, transparent 60%),
+          radial-gradient(900px 600px at 50% 120%, #0e1620 0%, transparent 55%),
+          var(--field);
+      }
+      canvas#game {
+        display: block;
+        image-rendering: auto;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
+        border-radius: 4px;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
