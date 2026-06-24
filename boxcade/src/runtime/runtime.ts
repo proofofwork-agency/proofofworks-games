@@ -27,7 +27,6 @@ import { v3, vclone, type Vec3 } from '../engine/math'
 import { EventBus } from '../engine/events'
 import { attachTouchControls } from '../engine/touch'
 import { createGameStore, type GameStoreEquipped } from './store'
-import { escapeHtml } from './dom'
 import { createHudSystem } from './systems/hud'
 import { createChatSystem } from './systems/chat'
 import { createPauseSystem } from './systems/pause'
@@ -388,7 +387,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     combat.onKill = (info) => {
       const kn = info.killer ? info.killer.name : '☠'
       const icon = info.headshot ? '🎯' : '⚔'
-      ch.addKillLine(`<b>${escapeHtml(kn)}</b> ${icon} ${escapeHtml(info.victim.name)}`)
+      ch.addKillLine(kn, icon, info.victim.name)
       if (info.killer === combat!.self) {
         const blobcash = info.headshot ? 15 : 10
         economy.earn(blobcash, 'kill')
@@ -851,7 +850,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       }
     }
     net.onPvpKill = (e) => {
-      ch.addKillLine(`<b>${escapeHtml(e.attackerName)}</b> ⚔ ${escapeHtml(e.victimName)}`)
+      ch.addKillLine(e.attackerName, '⚔', e.victimName)
       if (e.victimId === net.selfId) {
         cb.applyServerKill(e.attackerName, e.weapon)
       } else {

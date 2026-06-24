@@ -10,8 +10,7 @@ import { el } from '../dom'
 
 export interface CombatHudSystem extends GameSystem {
   updateHealth(hp: number, max: number): void
-  /** caller escapes user content before building the line's HTML */
-  addKillLine(html: string): void
+  addKillLine(attackerName: string, icon: string, victimName: string): void
   updateAmmo(): void
   renderWeaponBar(): void
   damageVignette(): void
@@ -121,9 +120,13 @@ export function createCombatHudSystem(deps: {
     updateAmmo,
     renderWeaponBar,
 
-    addKillLine(html: string) {
+    addKillLine(attackerName: string, iconText: string, victimName: string) {
       const line = el('div', 'kill-line')
-      line.innerHTML = html
+      const attacker = document.createElement('b')
+      attacker.textContent = attackerName
+      const victim = document.createElement('b')
+      victim.textContent = victimName
+      line.append(attacker, document.createTextNode(` ${iconText} `), victim)
       killFeed.appendChild(line)
       while (killFeed.children.length > 6) killFeed.firstChild?.remove()
       setTimeout(() => line.remove(), 6000)

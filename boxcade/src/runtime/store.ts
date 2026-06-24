@@ -88,7 +88,12 @@ export function createGameStore(opts: {
       const row = document.createElement('div')
       row.style.cssText = 'display:flex;align-items:center;gap:10px'
       const swatch = document.createElement('span')
-      swatch.style.cssText = `width:22px;height:22px;border-radius:6px;background:${item.color};border:2px solid rgba(255,255,255,.35);flex:none`
+      swatch.style.width = '22px'
+      swatch.style.height = '22px'
+      swatch.style.borderRadius = '6px'
+      swatch.style.backgroundColor = item.color
+      swatch.style.border = '2px solid rgba(255,255,255,.35)'
+      swatch.style.flex = 'none'
       const label = document.createElement('span')
       label.style.cssText = 'flex:1'
       label.textContent = `${item.name} · ${item.kind === 'shirt' ? 'shirt' : 'trail'}`
