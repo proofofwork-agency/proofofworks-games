@@ -10,6 +10,14 @@ const SKIN = '#f2c84b'
 const SHIRTS = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#f39c12', '#1abc9c', '#fd79a8', '#00b06f', '#5d6df1']
 const PANTS = ['#2c3e50', '#34495e', '#1e3a5f', '#3d2b56', '#4a3728']
 
+export function pickAvatarColors(seed: number, shirtOverride?: string): { shirt: string; pants: string } {
+  const unsignedSeed = seed >>> 0
+  return {
+    shirt: shirtOverride ?? SHIRTS[unsignedSeed % SHIRTS.length]!,
+    pants: PANTS[(unsignedSeed >>> 4) % PANTS.length]!,
+  }
+}
+
 /** Optional cosmetics the runtime/shop can apply to any avatar (local or
  *  remote). hat = a shop item id like 'hat-crown' (+ its accent color);
  *  face = a face variant id like 'face-cool'. null/undefined leaves the slot
@@ -224,8 +232,9 @@ export class Avatar {
 
   constructor(name: string, seedKey: string, shirtOverride?: string, cosmetics?: AvatarCosmetics) {
     const seed = hashString(seedKey)
-    this.shirtColor = shirtOverride ?? SHIRTS[seed % SHIRTS.length]
-    const pants = PANTS[(seed >> 4) % PANTS.length]
+    const colors = pickAvatarColors(seed, shirtOverride)
+    this.shirtColor = colors.shirt
+    const pants = colors.pants
 
     this.body = new THREE.Group()
     this.group.add(this.body)
