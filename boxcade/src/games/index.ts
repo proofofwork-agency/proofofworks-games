@@ -14,10 +14,11 @@ import goldRunner from './gold-runner'
 import wolfden from './wolfden'
 import cinemaCarnage from './cinema-carnage'
 import chompMaze from './chomp-maze'
+import disasterIsland from './disaster-island'
 import starter from './starter'
 import battleChess from './battle-chess'
 
-export const GAMES: GameDef[] = [dustyard, squadfall, facingTowers, riftYard, skyObby, voxelIsland, castleRun, goldRunner, wolfden, cinemaCarnage, chompMaze, battleChess, starter]
+export const GAMES: GameDef[] = [dustyard, squadfall, facingTowers, riftYard, skyObby, voxelIsland, castleRun, goldRunner, wolfden, cinemaCarnage, chompMaze, disasterIsland, battleChess, starter]
 
 export function findGame(id: string): GameDef | undefined {
   return GAMES.find((g) => g.meta.id === id)
