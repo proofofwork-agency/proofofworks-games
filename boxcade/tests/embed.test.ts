@@ -67,7 +67,11 @@ describe('external embed URL validation', () => {
 })
 
 describe('thumbnail validation', () => {
-  type DbModule = { validImageThumb(s: unknown): boolean }
+  type DbModule = {
+    cleanMetaBlurb(s: unknown): string
+    validImageThumb(s: unknown): boolean
+    validMetaGradient(s: unknown): boolean
+  }
   const dbModule = async () => await import('../server/db.mjs') as DbModule
 
   it('accepts small raster data-URIs only', async () => {
@@ -86,5 +90,23 @@ describe('thumbnail validation', () => {
     expect(validImageThumb('https://example.com/thumb.png')).toBe(false)
     expect(validImageThumb('data:image/png;base64,' + 'A'.repeat(90_000))).toBe(false)
     expect(validImageThumb(42)).toBe(false)
+  })
+
+  it('cleans card blurbs to plain text', async () => {
+    const { cleanMetaBlurb } = await dbModule()
+
+    expect(cleanMetaBlurb('hello <b>world</b>')).toBe('hello bworld/b')
+    expect(cleanMetaBlurb('x'.repeat(200))).toHaveLength(140)
+    expect(cleanMetaBlurb(null)).toBe('')
+  })
+
+  it('accepts only safe CSS gradient card backgrounds', async () => {
+    const { validMetaGradient } = await dbModule()
+
+    expect(validMetaGradient('linear-gradient(135deg, #06d6a0 0%, #4cc9f0 100%)')).toBe(true)
+    expect(validMetaGradient('radial-gradient(circle, rgb(10, 20, 30) 0%, hsl(210, 80%, 60%) 100%)')).toBe(true)
+    expect(validMetaGradient('linear-gradient(135deg, url(javascript:alert(1)), #fff)')).toBe(false)
+    expect(validMetaGradient('linear-gradient(135deg, #fff);background:url(x)')).toBe(false)
+    expect(validMetaGradient('red')).toBe(false)
   })
 })

@@ -75,6 +75,18 @@ export function validImageThumb(s) {
   return typeof s === 'string' && s.length <= THUMB_MAX && THUMB_PREFIXES.some((p) => s.startsWith(p))
 }
 
+export function cleanMetaBlurb(s) {
+  return typeof s === 'string' ? s.replace(/[<>]/g, '').slice(0, 140).trim() : ''
+}
+
+export function validMetaGradient(s) {
+  if (typeof s !== 'string' || s.length > 200) return false
+  const value = s.trim()
+  if (!/^(?:linear|radial)-gradient\([#(),.%\s+\-0-9a-z]*\)$/i.test(value)) return false
+  if (/(?:url|var|calc|attr|expression|import|@|;|["'<>\\])/i.test(value)) return false
+  return /(#[0-9a-f]{3,8}\b|rgba?\(|hsla?\()/i.test(value)
+}
+
 export function createGame({ doc, name, author, type = 'game', url = '', hidden = false }) {
   const id = newId()
   const token = newToken()
@@ -133,8 +145,8 @@ export function getGameMeta(id) {
   try {
     const meta = JSON.parse(row.doc)?.meta ?? {}
     emoji = typeof meta.emoji === 'string' ? meta.emoji.slice(0, 8) : emoji
-    gradient = typeof meta.gradient === 'string' ? meta.gradient.slice(0, 200) : ''
-    blurb = typeof meta.blurb === 'string' ? meta.blurb.slice(0, 140) : ''
+    gradient = validMetaGradient(meta.gradient) ? meta.gradient.trim().slice(0, 200) : ''
+    blurb = cleanMetaBlurb(meta.blurb)
     thumb = validImageThumb(meta.thumb) ? meta.thumb : ''
   } catch { /* corrupt docs render with defaults */ }
   return { emoji, gradient, thumb, blurb }

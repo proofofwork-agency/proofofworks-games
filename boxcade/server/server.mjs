@@ -30,20 +30,34 @@ const PORT = process.env.BOXCADE_PORT ? Number(process.env.BOXCADE_PORT) : 8081
 const TICK_MS = 66 // ~15Hz state broadcast
 const DEFAULT_ROOM_LIMIT = 64
 const MAX_ROOM_LIMIT = 250
+const MAX_GLOBAL_CLIENTS = 5000
+const MAX_IP_CLIENTS = 32
+const MAX_GLOBAL_ROOMS = 2000
+const PREJOIN_IDLE_MS = 20_000
 const INTEREST_RADIUS = 60
 const INTEREST_RADIUS2 = INTEREST_RADIUS * INTEREST_RADIUS
 const FAR_SNAPSHOT_MS = 1000
 const MAX_EVENT_BYTES = 2048
+const WORLD_BOUND = 100_000
+const MAX_BUFFERED_BYTES = 1024 * 1024
+const MAX_BUFFER_STRIKES = 3
+const STATE_BUDGET_MAX = 90
+const STATE_REFILL_PER_SEC = 30
+const GAME_KEY_RE = /^[a-z0-9_-]{1,64}$/i
+const SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+}
 
 const server = http.createServer((req, res) => {
   handleApi(req, res).then((handled) => {
     if (!handled) {
-      res.writeHead(404, { 'content-type': 'text/plain', 'access-control-allow-origin': '*' })
+      res.writeHead(404, { ...SECURITY_HEADERS, 'content-type': 'text/plain', 'access-control-allow-origin': '*' })
       res.end('Blobcade server: API at /api/*, websocket on this port.')
     }
   }).catch(() => {
     try {
-      res.writeHead(500, { 'content-type': 'application/json' })
+      res.writeHead(500, { ...SECURITY_HEADERS, 'content-type': 'application/json' })
       res.end('{"error":"server error"}')
     } catch { /* socket gone */ }
   })
@@ -52,6 +66,8 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server })
 const rooms = new Map() // roomKey "gameKey#code" -> Map<id, client>
 const roomCaps = new Map()
+const clients = new Set()
+const ipCounts = new Map()
 let nextId = 1
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
@@ -70,15 +86,76 @@ function cleanMaxPlayers(n) {
   return Math.min(MAX_ROOM_LIMIT, Math.max(1, v))
 }
 
+function remoteIp(req) {
+  return req?.socket?.remoteAddress ?? '?'
+}
+
+function incIp(ip) {
+  const n = ipCounts.get(ip) ?? 0
+  ipCounts.set(ip, n + 1)
+}
+
+function decIp(ip) {
+  const n = (ipCounts.get(ip) ?? 1) - 1
+  if (n <= 0) ipCounts.delete(ip)
+  else ipCounts.set(ip, n)
+}
+
+function rejectBusy(ws) {
+  try {
+    ws.send(JSON.stringify({ t: 'c', id: -1, sys: true, x: 'Server is busy — try again soon.' }), () => {
+      try { ws.close() } catch { /* noop */ }
+    })
+  } catch {
+    try { ws.close() } catch { /* noop */ }
+  }
+}
+
+function clampFinite(value, min, max, fallback = 0) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.min(max, Math.max(min, n))
+}
+
+function allowState(client) {
+  const now = Date.now()
+  client.stateBudget = Math.min(STATE_BUDGET_MAX, client.stateBudget + ((now - client.stateAt) / 1000) * STATE_REFILL_PER_SEC)
+  client.stateAt = now
+  if (client.stateBudget < 1) return false
+  client.stateBudget -= 1
+  return true
+}
+
+function canSend(c) {
+  if (c.ws.bufferedAmount <= MAX_BUFFERED_BYTES) {
+    c.bufferStrikes = 0
+    return true
+  }
+  c.bufferStrikes = (c.bufferStrikes ?? 0) + 1
+  if (c.bufferStrikes >= MAX_BUFFER_STRIKES) {
+    try { c.ws.terminate() } catch { /* noop */ }
+  }
+  return false
+}
+
+function sendClient(c, data) {
+  if (c.ws.readyState !== 1 || !canSend(c)) return false
+  try { c.ws.send(data); return true } catch { return false }
+}
+
 /** resolve a join spec to a concrete room key (auto-assign or explicit code) */
 function resolveRoom(spec, desiredCap = DEFAULT_ROOM_LIMIT) {
   const hash = spec.indexOf('#')
   if (hash >= 0) {
     const gameKey = spec.slice(0, hash)
     const code = spec.slice(hash + 1).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
-    if (!gameKey || !code) return null
-    return `${gameKey}#${code}`
+    if (!GAME_KEY_RE.test(gameKey) || !code) return null
+    const key = `${gameKey}#${code}`
+    if (!rooms.has(key) && rooms.size >= MAX_GLOBAL_ROOMS) return null
+    if (!roomCaps.has(key)) roomCaps.set(key, desiredCap)
+    return key
   }
+  if (!GAME_KEY_RE.test(spec)) return null
   // auto-assign: fullest open instance of this game, else a fresh one
   let best = null
   let bestSize = -1
@@ -90,7 +167,9 @@ function resolveRoom(spec, desiredCap = DEFAULT_ROOM_LIMIT) {
       bestSize = r.size
     }
   }
-  const key = best ?? `${spec}#${newCode()}`
+  if (best) return best
+  if (rooms.size >= MAX_GLOBAL_ROOMS) return null
+  const key = `${spec}#${newCode()}`
   if (!roomCaps.has(key)) roomCaps.set(key, desiredCap)
   return key
 }
@@ -107,7 +186,7 @@ function room(key) {
 function broadcast(r, msg, exceptId = -1) {
   const data = JSON.stringify(msg)
   for (const c of r.values()) {
-    if (c.id !== exceptId && c.ws.readyState === 1) c.ws.send(data)
+    if (c.id !== exceptId) sendClient(c, data)
   }
 }
 
@@ -120,9 +199,22 @@ function cleanName(n) {
   return String(n ?? '').replace(/[^\w \-.]/g, '').trim().slice(0, 16) || 'Boxy' + Math.floor(Math.random() * 9999)
 }
 
-wss.on('connection', (ws) => {
+function validJoinSpec(spec) {
+  const hash = spec.indexOf('#')
+  const gameKey = hash >= 0 ? spec.slice(0, hash) : spec
+  return GAME_KEY_RE.test(gameKey)
+}
+
+wss.on('connection', (ws, req) => {
+  const ip = remoteIp(req)
+  if (clients.size >= MAX_GLOBAL_CLIENTS || (ipCounts.get(ip) ?? 0) >= MAX_IP_CLIENTS) {
+    rejectBusy(ws)
+    return
+  }
+  incIp(ip)
   const client = {
     ws,
+    ip,
     id: nextId++,
     name: '',
     roomKey: null,
@@ -133,8 +225,11 @@ wss.on('connection', (ws) => {
     dirty: false,
     interestAt: new Map(),
     lastChat: 0,
+    stateBudget: STATE_BUDGET_MAX,
+    stateAt: Date.now(),
     eventBudget: 20,
     eventAt: Date.now(),
+    bufferStrikes: 0,
     // pvp arbitration ledger
     hp: 100,
     respawnAt: 0,
@@ -142,6 +237,13 @@ wss.on('connection', (ws) => {
     dmgAt: Date.now(),
     alive: true,
   }
+  clients.add(client)
+  const prejoinTimer = setTimeout(() => {
+    if (!client.roomKey) {
+      try { ws.close() } catch { /* noop */ }
+    }
+  }, PREJOIN_IDLE_MS)
+  prejoinTimer.unref?.()
 
   ws.on('pong', () => { client.alive = true })
 
@@ -153,9 +255,16 @@ wss.on('connection', (ws) => {
     if (m.t === 'j' && !client.roomKey) {
       const spec = String(m.g ?? '').slice(0, 80)
       if (!spec) return
+      if (!validJoinSpec(spec)) {
+        try { ws.close() } catch { /* noop */ }
+        return
+      }
       const desiredCap = cleanMaxPlayers(m.max)
       const key = resolveRoom(spec, desiredCap)
-      if (!key) return
+      if (!key) {
+        rejectBusy(ws)
+        return
+      }
       const r = room(key)
       if (!roomCaps.has(key)) roomCaps.set(key, desiredCap)
       if (r.size >= roomCap(key)) {
@@ -163,6 +272,7 @@ wss.on('connection', (ws) => {
         ws.close()
         return
       }
+      clearTimeout(prejoinTimer)
       client.roomKey = key
       client.name = cleanName(m.n)
       r.set(client.id, client)
@@ -184,9 +294,13 @@ wss.on('connection', (ws) => {
     if (!r) return
 
     if (m.t === 's' && Array.isArray(m.p) && m.p.length === 3) {
-      client.p = m.p.map((v) => Number(v) || 0)
-      client.r = Number(m.r) || 0
-      client.a = Number(m.a) || 0
+      if (!allowState(client)) return
+      client.p = m.p.map((v) => clampFinite(v, -WORLD_BOUND, WORLD_BOUND, 0))
+      // rotation is periodic: normalize to [-pi, pi] rather than clamp, so an
+      // accumulated yaw (e.g. a vehicle steered in circles) never mis-faces.
+      const yaw = Number(m.r)
+      client.r = Number.isFinite(yaw) ? Math.atan2(Math.sin(yaw), Math.cos(yaw)) : 0
+      client.a = Math.round(clampFinite(m.a, 0, 16, 0))
       client.v = typeof m.v === 'string' ? m.v.slice(0, 8) : '' // omitted = on foot
       client.dirty = true
     } else if (m.t === 'c') {
@@ -238,6 +352,9 @@ wss.on('connection', (ws) => {
   })
 
   ws.on('close', () => {
+    clearTimeout(prejoinTimer)
+    clients.delete(client)
+    decIp(client.ip)
     if (!client.roomKey) return
     const r = rooms.get(client.roomKey)
     if (!r) return
@@ -273,7 +390,7 @@ setInterval(() => {
         if (!near) target.interestAt.set(c.id, now)
         states.push([c.id, c.p[0], c.p[1], c.p[2], c.r, c.a, c.v])
       }
-      if (states.length > 0 && target.ws.readyState === 1) target.ws.send(JSON.stringify({ t: 's', s: states }))
+      if (states.length > 0) sendClient(target, JSON.stringify({ t: 's', s: states }))
     }
     for (const c of r.values()) {
       if (c.dirty) c.dirty = false
@@ -288,15 +405,13 @@ setInterval(() => {
 
 // heartbeat
 setInterval(() => {
-  for (const r of rooms.values()) {
-    for (const c of r.values()) {
-      if (!c.alive) {
-        try { c.ws.terminate() } catch { /* noop */ }
-        continue
-      }
-      c.alive = false
-      try { c.ws.ping() } catch { /* noop */ }
+  for (const c of clients) {
+    if (!c.alive) {
+      try { c.ws.terminate() } catch { /* noop */ }
+      continue
     }
+    c.alive = false
+    try { c.ws.ping() } catch { /* noop */ }
   }
 }, 30000)
 
