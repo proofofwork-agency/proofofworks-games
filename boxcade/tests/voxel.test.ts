@@ -53,6 +53,16 @@ describe('VoxelWorld.deserialize rejects bad input', () => {
   valid.set(1, 1, 1, STONE)
   const goodObj = JSON.parse(valid.serialize()) as Record<string, unknown>
 
+  it('accepts the legacy boxcade voxel-world marker', () => {
+    const legacy = { ...goodObj, boxcade: 'voxel-world/v1' }
+    delete legacy.blobcade
+    const restored = VoxelWorld.deserialize(JSON.stringify(legacy))
+    expect(restored.sx).toBe(valid.sx)
+    expect(restored.sy).toBe(valid.sy)
+    expect(restored.sz).toBe(valid.sz)
+    expect(restored.get(1, 1, 1)).toBe(STONE)
+  })
+
   it('rejects invalid JSON', () => {
     expect(() => VoxelWorld.deserialize('{ not json')).toThrow(/not valid JSON/i)
   })

@@ -51,4 +51,18 @@ describe('migrateBlobcadeLocalStorage', () => {
     expect(storage.getItem('blobcade.name')).toBe('NewName')
     expect(storage.getItem('boxcade.name')).toBe('OldName')
   })
+
+  it('is idempotent after migrating matching legacy keys', () => {
+    const storage = new MemoryStorage() as unknown as Storage
+    storage.setItem('boxcade.bolts', '75')
+    storage.setItem('boxcade.dailyBonus', '2026-06-24')
+
+    migrateBlobcadeLocalStorage(storage)
+    migrateBlobcadeLocalStorage(storage)
+
+    expect(storage.getItem('blobcade.blobcash')).toBe('75')
+    expect(storage.getItem('blobcade.dailyBonus')).toBe('2026-06-24')
+    expect(storage.getItem('boxcade.bolts')).toBeNull()
+    expect(storage.getItem('boxcade.dailyBonus')).toBeNull()
+  })
 })

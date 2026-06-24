@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { validateGameDoc, GAMEDOC_VERSION, GAMEDOC_LIMITS, slugifyName } from '../src/sdk/gamedoc'
+import { decodeGameDoc, encodeGameDoc } from '../src/sdk/codec'
 import { RESERVED_EVENT_PREFIXES } from '../src/sdk/rules'
 
 const minimal = () => ({ blobcade: 'gamedoc', v: 1, meta: { name: 'Test' } })
@@ -26,6 +27,19 @@ describe('validateGameDoc', () => {
     expect(res.ok).toBe(true)
     expect(res.doc?.blobcade).toBe('gamedoc')
     expect('boxcade' in (res.doc as object)).toBe(false)
+  })
+
+  it('reads legacy .boxcade.json content and re-encodes with the blobcade marker', async () => {
+    const legacyFileText = JSON.stringify({ boxcade: 'gamedoc', v: 1, meta: { name: 'Legacy File' } })
+    const imported = validateGameDoc(legacyFileText)
+    expect(imported.ok).toBe(true)
+    expect(imported.doc?.blobcade).toBe('gamedoc')
+    expect('boxcade' in (imported.doc as object)).toBe(false)
+
+    const payload = await encodeGameDoc(imported.doc!)
+    const decoded = await decodeGameDoc(payload) as Record<string, unknown>
+    expect(decoded.blobcade).toBe('gamedoc')
+    expect(decoded.boxcade).toBeUndefined()
   })
 
   it('rejects non-JSON strings and non-objects', () => {
