@@ -99,6 +99,7 @@ export class Particles {
       spread = 1,
       up = 1.4,
     } = opts
+    const palette = colors.length > 0 ? colors : ['#ffffff']
     let spawned = 0
     for (const p of this.pool) {
       if (spawned >= count) break
@@ -111,7 +112,7 @@ export class Particles {
       p.maxLife = p.life = life * (0.6 + Math.random() * 0.7)
       p.size = size * (0.7 + Math.random() * 0.6)
       p.gravity = gravity
-      p.color.set(colors[Math.floor(Math.random() * colors.length)])
+      p.color.set(palette[Math.floor(Math.random() * palette.length)])
       spawned++
     }
   }

@@ -96,6 +96,25 @@ function roundedBox(sx: number, sy: number, sz: number): RoundedBoxGeometry {
 
 const matCache = new Map<string, THREE.Material>()
 
+const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
+const RGB_COLOR_RE = /^rgba?\(\s*[-+]?(?:\d+|\d*\.\d+)%?\s*,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*(?:,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*)?\)$/i
+const HSL_COLOR_RE = /^hsla?\(\s*[-+]?(?:\d+|\d*\.\d+)(?:deg|rad|turn)?\s*,\s*[-+]?(?:\d+|\d*\.\d+)%\s*,\s*[-+]?(?:\d+|\d*\.\d+)%\s*(?:,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*)?\)$/i
+const NAMED_COLORS = new Set(Object.keys(THREE.Color.NAMES))
+
+function isColorString(value: string): boolean {
+  return HEX_COLOR_RE.test(value)
+    || RGB_COLOR_RE.test(value)
+    || HSL_COLOR_RE.test(value)
+    || NAMED_COLORS.has(value.toLowerCase())
+}
+
+export function safeColor(input: unknown, fallback = '#ffffff'): THREE.Color {
+  const value = typeof input === 'string' ? input.trim() : ''
+  if (value && isColorString(value)) return new THREE.Color(value)
+  const fallbackValue = fallback.trim()
+  return new THREE.Color(isColorString(fallbackValue) ? fallbackValue : '#ffffff')
+}
+
 /**
  * Registry-pattern extension point: add your own material kind, then use it
  * anywhere a MaterialKind goes (parts, prefabs, text-map handlers).
@@ -120,7 +139,7 @@ export function partMaterial(color: string, kind: MaterialKind = 'plastic'): THR
   let m = matCache.get(key)
   if (m) return m
 
-  const c = new THREE.Color(color)
+  const c = safeColor(color, '#b8c4d0')
   const std = (opts: Partial<THREE.MeshStandardMaterialParameters>) =>
     new THREE.MeshStandardMaterial({ color: c, ...opts })
 
