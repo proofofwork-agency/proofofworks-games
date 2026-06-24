@@ -21,7 +21,7 @@ export default defineGame({
     name: '${name}',
     emoji: '🧪',
     genre: 'Developer',
-    blurb: 'A trusted TypeScript game built with the Boxcade SDK.',
+    blurb: 'A trusted TypeScript game built with the Blobcade SDK.',
     gradient: 'linear-gradient(135deg, #06d6a0, #2f81f7)',
   },
   camera: 'orbit',

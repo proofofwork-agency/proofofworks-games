@@ -2,8 +2,8 @@
 
 Design research for `src/games/squadfall.ts`, compiled 2026-06-09/10 from public
 documentation of popular squad-respawn ("resurgence-style") battle royales.
-These are *genre conventions* — numbers we tuned to Boxcade scale. All names,
-geometry and rules expressed in the game are Boxcade originals.
+These are *genre conventions* — numbers we tuned to Blobcade scale. All names,
+geometry and rules expressed in the game are Blobcade originals.
 
 ## The island
 

@@ -1,4 +1,4 @@
-// Boxcade combat: a classic arena-shooter arsenal (hitscan + projectile
+// Blobcade combat: a classic arena-shooter arsenal (hitscan + projectile
 // archetypes), damage/respawn, splash knockback (rocket jumps work), limited
 // ammo with weapon/ammo/health pickups, and bots that run the same character
 // physics as players. Bots pick the right gun for the range, lead their
@@ -104,7 +104,7 @@ export const DEFAULT_LOADOUT = ['sidearm', 'shock', 'pulse', 'minigun', 'flak', 
  *   registerWeapon({ id: 'crossbow', name: 'Crossbow', icon: '🏹', kind: 'projectile', ... })
  */
 export function registerWeapon(def: WeaponDef): WeaponDef {
-  if (WEAPONS[def.id]) console.warn(`[boxcade] registerWeapon: overwriting '${def.id}'`)
+  if (WEAPONS[def.id]) console.warn(`[blobcade] registerWeapon: overwriting '${def.id}'`)
   WEAPONS[def.id] = def
   return def
 }

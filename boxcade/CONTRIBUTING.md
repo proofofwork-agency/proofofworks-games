@@ -1,8 +1,8 @@
-# Contributing to Boxcade
+# Contributing to Blobcade
 
 ## Architecture & Layering
 
-Boxcade enforces a strict layering rule to keep the codebase modular and composable:
+Blobcade enforces a strict layering rule to keep the codebase modular and composable:
 
 ```
 games/ → sdk/ → engine/

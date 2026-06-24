@@ -209,7 +209,7 @@ export function createRulesSystem(
       case 'celebrate': ctx.celebrate(a.text); break
       case 'win':
         ctx.celebrate(a.text ?? '🏆 YOU WIN!')
-        ctx.earnBolts(25, 'victory')
+        ctx.earnBlobcash(25, 'victory')
         break
       case 'kill': ctx.player.kill(); break
       case 'teleport': ctx.player.teleport(v3FromDoc(a.to)); break
@@ -285,7 +285,7 @@ export function createRulesSystem(
       }
       case 'emit': {
         if (RESERVED_EVENT_PREFIXES.some((p) => a.name.startsWith(p))) {
-          console.warn(`[boxcade] rules: emit '${a.name}' uses a reserved prefix — skipped`)
+          console.warn(`[blobcade] rules: emit '${a.name}' uses a reserved prefix — skipped`)
           break
         }
         ctx.events.emit(a.name, {})

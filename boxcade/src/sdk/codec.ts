@@ -49,7 +49,7 @@ export async function decodeGameDoc(payload: string): Promise<unknown> {
   try {
     return JSON.parse(new TextDecoder().decode(inflated))
   } catch {
-    throw new Error('this share link does not contain a Boxcade game')
+    throw new Error('this share link does not contain a Blobcade game')
   }
 }
 

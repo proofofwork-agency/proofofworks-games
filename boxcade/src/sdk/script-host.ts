@@ -38,7 +38,7 @@ for (const key of ['fetch','XMLHttpRequest','WebSocket','EventSource','importScr
   try { self[key] = undefined } catch {}
 }
 try { if (self.navigator) self.navigator.sendBeacon = undefined } catch {}
-const boxcade = {
+const blobcade = {
   onStart(fn) { if (typeof fn === 'function') callbacks.start.push(fn) },
   onTick(fn) { if (typeof fn === 'function') callbacks.tick.push(fn) },
   on(name, fn) {
@@ -87,7 +87,7 @@ const boxcade = {
   },
 }
 try {
-  new Function('boxcade', '"use strict";\\n' + creatorCode)(boxcade)
+  new Function('blobcade', '"use strict";\\n' + creatorCode)(blobcade)
   send({ type: 'ready' })
 } catch (err) {
   send({ type: 'log', level: 'error', msg: err && err.message ? err.message : String(err) })
@@ -96,16 +96,16 @@ onmessage = (event) => {
   const msg = event.data || {}
   if (msg.type === 'ping') { send({ type: 'pong', seq: msg.seq }); return }
   if (msg.type === 'init') {
-    for (const fn of callbacks.start) { try { fn(msg.doc) } catch (err) { boxcade.log(err && err.message ? err.message : err) } }
+    for (const fn of callbacks.start) { try { fn(msg.doc) } catch (err) { blobcade.log(err && err.message ? err.message : err) } }
     return
   }
   if (msg.type === 'tick') {
-    for (const fn of callbacks.tick) { try { fn(msg.time, msg.dt, msg.state) } catch (err) { boxcade.log(err && err.message ? err.message : err) } }
+    for (const fn of callbacks.tick) { try { fn(msg.time, msg.dt, msg.state) } catch (err) { blobcade.log(err && err.message ? err.message : err) } }
     return
   }
   if (msg.type === 'event') {
     const list = callbacks.events.get(msg.name) || []
-    for (const fn of list) { try { fn(msg.payload) } catch (err) { boxcade.log(err && err.message ? err.message : err) } }
+    for (const fn of list) { try { fn(msg.payload) } catch (err) { blobcade.log(err && err.message ? err.message : err) } }
   }
 }
 `
@@ -156,12 +156,12 @@ export function createScriptSystem(doc: GameDoc, script: string, registry: PartR
     if (worker) worker.terminate()
     if (workerUrl) URL.revokeObjectURL(workerUrl)
     workerUrl = URL.createObjectURL(new Blob([creatorWorkerSource(script)], { type: 'text/javascript' }))
-    worker = new Worker(workerUrl, { name: `boxcade-script:${doc.meta.name}` })
+    worker = new Worker(workerUrl, { name: `blobcade-script:${doc.meta.name}` })
     bucket.at = performance.now()
     waitingFor = null
     worker.onmessage = (event) => handleMessage(event.data as ScriptMessage)
     worker.onerror = (event) => {
-      console.warn('[boxcade] script worker error', event.message)
+      console.warn('[blobcade] script worker error', event.message)
     }
     worker.postMessage({
       type: 'init',
@@ -211,7 +211,7 @@ export function createScriptSystem(doc: GameDoc, script: string, registry: PartR
     }
     if (msg.type === 'subscribe') { subscribe(msg.events); return }
     if (msg.type === 'log') {
-      console[msg.level === 'error' ? 'warn' : 'log']('[boxcade script]', cleanText(msg.msg, 500))
+      console[msg.level === 'error' ? 'warn' : 'log']('[blobcade script]', cleanText(msg.msg, 500))
       return
     }
     if (!spend()) return
@@ -291,7 +291,7 @@ function runAction(
     case 'toast': ctx.hud.toast(a.text); break
     case 'big': ctx.hud.big(a.text); break
     case 'celebrate': ctx.celebrate(a.text); break
-    case 'win': ctx.celebrate(a.text ?? '🏆 YOU WIN!'); ctx.earnBolts(25, 'victory'); break
+    case 'win': ctx.celebrate(a.text ?? '🏆 YOU WIN!'); ctx.earnBlobcash(25, 'victory'); break
     case 'kill': ctx.player.kill(); break
     case 'teleport': ctx.player.teleport(v3(a.to[0], a.to[1], a.to[2])); break
     case 'award': ctx.award(a.amount ?? 1); break
@@ -438,7 +438,7 @@ function spawnBot(ctx: GameContext, raw: unknown) {
       shirt: typeof opts.shirt === 'string' ? opts.shirt : undefined,
     })
   } catch (err) {
-    console.warn('[boxcade script] spawnBot skipped:', err instanceof Error ? err.message : err)
+    console.warn('[blobcade script] spawnBot skipped:', err instanceof Error ? err.message : err)
   }
 }
 

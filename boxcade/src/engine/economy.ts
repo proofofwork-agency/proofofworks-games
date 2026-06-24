@@ -1,4 +1,4 @@
-// Bolts — Boxcade's platform economy:
+// Blobcash — Blobcade's platform economy:
 //   earn by playing (coins, kills, captures, wins, daily login)
 //   spend in the avatar shop (shirts, trails, hats, faces)
 // Wallet + inventory persist in localStorage. The classic platform loop,
@@ -37,16 +37,16 @@ export const CATALOG: ShopItem[] = [
   { id: 'face-angry', kind: 'face', name: 'Game Face', price: 250, color: '#1a1a1a' },
 ]
 
-const K_BOLTS = 'boxcade.bolts'
-const K_INV = 'boxcade.inventory'
-const K_EQUIP = 'boxcade.equipped'
-const K_DAILY = 'boxcade.dailyBonus'
+const K_BLOBCASH = 'blobcade.blobcash'
+const K_INV = 'blobcade.inventory'
+const K_EQUIP = 'blobcade.equipped'
+const K_DAILY = 'blobcade.dailyBonus'
 
 export interface Equipped {
   shirt: string | null
   trail: string | null
   /** additive slots — present only once touched, so the legacy
-   *  boxcade.equipped JSON ({shirt,trail}) stays compatible */
+   *  blobcade.equipped JSON ({shirt,trail}) stays compatible */
   hat?: string | null
   face?: string | null
 }
@@ -57,11 +57,11 @@ class Economy {
   private listeners: Listener[] = []
 
   get balance(): number {
-    return Number(localStorage.getItem(K_BOLTS) ?? 0) || 0
+    return Number(localStorage.getItem(K_BLOBCASH) ?? 0) || 0
   }
 
   private setBalance(n: number) {
-    localStorage.setItem(K_BOLTS, String(Math.max(0, Math.round(n))))
+    localStorage.setItem(K_BLOBCASH, String(Math.max(0, Math.round(n))))
     this.listeners.forEach((l) => l(this.balance))
   }
 
@@ -91,7 +91,7 @@ class Economy {
     return (item?.price === 0) || this.inventory().includes(id)
   }
 
-  /** deduct Bolts if affordable (per-game stores) — false when short */
+  /** deduct Blobcash if affordable (per-game stores) — false when short */
   spend(amount: number): boolean {
     if (!Number.isFinite(amount) || amount <= 0 || this.balance < amount) return false
     this.setBalance(this.balance - amount)
@@ -102,7 +102,7 @@ class Economy {
     const item = CATALOG.find((i) => i.id === id)
     if (!item) return { ok: false, reason: 'unknown item' }
     if (this.owns(id)) return { ok: false, reason: 'already owned' }
-    if (this.balance < item.price) return { ok: false, reason: 'not enough Bolts' }
+    if (this.balance < item.price) return { ok: false, reason: 'not enough Blobcash' }
     this.setBalance(this.balance - item.price)
     localStorage.setItem(K_INV, JSON.stringify([...this.inventory(), id]))
     return { ok: true }

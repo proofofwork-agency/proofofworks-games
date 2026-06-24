@@ -1,4 +1,4 @@
-// The Boxcade avatar: a friendly retro blocky character built from
+// The Blobcade avatar: a friendly retro blocky character built from
 // rounded boxes, with a canvas-drawn face, procedural walk/jump animation,
 // a floating name tag and chat bubbles. No rigs, no assets — pure code.
 

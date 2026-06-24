@@ -1,4 +1,6 @@
-# Open-sourcing Boxcade (ex-FreeBlox) — landscape & IP review
+# Open-sourcing Blobcade (ex-Boxcade, ex-FreeBlox) — landscape & IP review
+
+> **Update 2026-06-24 — second rename.** "Boxcade" → **"Blobcade"** and currency "Bolts" → **"Blobcash"** (B$ symbol kept again). Knockout-cleared via WHOIS + company-registry checks: no product/company/token collisions found; `blobcade.com/.io/.gg` and `blobcash.com/.io` are available, `blobcash.gg` is registered but parked/dead (not a rival). One gap — OpenCorporates was CAPTCHA-blocked, so that source is unconfirmed. A formal USPTO/EUIPO search (classes 9/36/41) and domain/handle registration are still pending (human). The 2026-06-10 review below is preserved verbatim as the original record.
 
 Reviewed 2026-06-10. Question: are there comparable projects, and can this repo
 be open-sourced without copyright/trademark problems?

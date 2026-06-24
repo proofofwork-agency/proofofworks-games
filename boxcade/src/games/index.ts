@@ -1,4 +1,4 @@
-// Game registry — every game on the Boxcade portal. Adding a game is:
+// Game registry — every game on the Blobcade portal. Adding a game is:
 //   1. create src/games/your-game.ts with defineGame({...})
 //   2. import + list it here. Done.
 

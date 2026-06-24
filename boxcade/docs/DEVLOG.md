@@ -1,4 +1,8 @@
-# Boxcade devlog
+# Blobcade devlog
+
+## 2026-06-24 — rename to Blobcade ✅
+
+- **Brand**: project renamed **Boxcade → Blobcade**, currency **Bolts → Blobcash** (the `B$` symbol is kept). The first pass renamed *outward-facing/visible text only* — page title/meta, HUD/shop/portal labels, user-facing errors, the server banner, and README + docs prose. A follow-up pass renames the internals (scripting API `boxcade.*`, embed protocol, `.boxcade.json` format, localStorage keys, identifiers/comments) with back-compat migration, plus the repo/dir + package name. Names were knockout-cleared via WHOIS + company-registry checks; a formal trademark search and domain/handle registration are still pending (human). Entries below remain in their original Boxcade-era wording.
 
 ## 2026-06-10 (late evening) — git baseline, security hardening, runtime decomposition ✅
 

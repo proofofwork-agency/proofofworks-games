@@ -1,4 +1,4 @@
-// The Parts world — Boxcade's brick-building model. Every part is a
+// The Parts world — Blobcade's brick-building model. Every part is a
 // rounded box with a material preset; behaviors animate parts kinematically
 // (the physics layer reads their per-frame deltas to carry the player along).
 
@@ -110,7 +110,7 @@ export function registerMaterial(
   factory: (color: THREE.Color) => THREE.Material,
   opts: { reflective?: boolean } = {},
 ) {
-  if (customMaterials.has(kind)) console.warn(`[boxcade] registerMaterial: overwriting '${kind}'`)
+  if (customMaterials.has(kind)) console.warn(`[blobcade] registerMaterial: overwriting '${kind}'`)
   customMaterials.set(kind, factory)
   if (opts.reflective) AUTO_REFLECT.add(kind)
 }
@@ -223,14 +223,14 @@ const behaviorFactories = new Map<string, (def: BehaviorDef) => Behavior>()
  * behavior type once and it works in every GameDoc, part def and editor.
  */
 export function registerBehavior(type: string, factory: (def: BehaviorDef) => Behavior) {
-  if (behaviorFactories.has(type)) console.warn(`[boxcade] registerBehavior: overwriting '${type}'`)
+  if (behaviorFactories.has(type)) console.warn(`[blobcade] registerBehavior: overwriting '${type}'`)
   behaviorFactories.set(type, factory)
 }
 
 export function behaviorFromDef(def: BehaviorDef): Behavior | null {
   const factory = behaviorFactories.get(def.type)
   if (!factory) {
-    console.warn(`[boxcade] behaviorFromDef: unknown behavior type '${def.type}'`)
+    console.warn(`[blobcade] behaviorFromDef: unknown behavior type '${def.type}'`)
     return null
   }
   return factory(def)

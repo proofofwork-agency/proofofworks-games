@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { validateGameDoc, GAMEDOC_VERSION, GAMEDOC_LIMITS, slugifyName } from '../src/sdk/gamedoc'
 import { RESERVED_EVENT_PREFIXES } from '../src/sdk/rules'
 
-const minimal = () => ({ boxcade: 'gamedoc', v: 1, meta: { name: 'Test' } })
+const minimal = () => ({ blobcade: 'gamedoc', v: 1, meta: { name: 'Test' } })
 
 describe('validateGameDoc', () => {
   it('accepts a minimal valid doc', () => {
@@ -20,6 +20,14 @@ describe('validateGameDoc', () => {
     expect(res.ok).toBe(true)
   })
 
+  it('accepts and normalizes the legacy boxcade marker', () => {
+    const legacy = { boxcade: 'gamedoc', v: 1, meta: { name: 'Legacy' } }
+    const res = validateGameDoc(legacy)
+    expect(res.ok).toBe(true)
+    expect(res.doc?.blobcade).toBe('gamedoc')
+    expect('boxcade' in (res.doc as object)).toBe(false)
+  })
+
   it('rejects non-JSON strings and non-objects', () => {
     expect(validateGameDoc('not json{').ok).toBe(false)
     expect(validateGameDoc(42).ok).toBe(false)
@@ -29,18 +37,18 @@ describe('validateGameDoc', () => {
 
   it('rejects a missing marker / missing version', () => {
     expect(validateGameDoc({ v: 1, meta: { name: 'x' } }).ok).toBe(false)
-    expect(validateGameDoc({ boxcade: 'gamedoc', meta: { name: 'x' } }).ok).toBe(false)
+    expect(validateGameDoc({ blobcade: 'gamedoc', meta: { name: 'x' } }).ok).toBe(false)
   })
 
   it('rejects newer versions with an update message', () => {
     const res = validateGameDoc({ ...minimal(), v: GAMEDOC_VERSION + 1 })
     expect(res.ok).toBe(false)
-    expect(res.errors.join(' ')).toMatch(/newer Boxcade/)
+    expect(res.errors.join(' ')).toMatch(/newer Blobcade/)
   })
 
   it('requires meta.name', () => {
-    expect(validateGameDoc({ boxcade: 'gamedoc', v: 1, meta: {} }).ok).toBe(false)
-    expect(validateGameDoc({ boxcade: 'gamedoc', v: 1 }).ok).toBe(false)
+    expect(validateGameDoc({ blobcade: 'gamedoc', v: 1, meta: {} }).ok).toBe(false)
+    expect(validateGameDoc({ blobcade: 'gamedoc', v: 1 }).ok).toBe(false)
   })
 
   it('warns (not errors) on unknown top-level fields', () => {
@@ -72,7 +80,7 @@ describe('validateGameDoc', () => {
   })
 
   it('rejects oversized documents and arrays', () => {
-    const bigStr = '{"boxcade":"gamedoc","v":1,"meta":{"name":"x","blurb":"' + 'a'.repeat(GAMEDOC_LIMITS.json) + '"}}'
+    const bigStr = '{"blobcade":"gamedoc","v":1,"meta":{"name":"x","blurb":"' + 'a'.repeat(GAMEDOC_LIMITS.json) + '"}}'
     expect(validateGameDoc(bigStr).ok).toBe(false)
 
     const manyParts = Array.from({ length: GAMEDOC_LIMITS.parts + 1 }, () => ({ kind: 'coin', at: [0, 0, 0] }))
@@ -190,9 +198,9 @@ describe('validateGameDoc', () => {
   })
 
   it('validates scripted GameDoc v2 documents', () => {
-    expect(validateGameDoc({ ...minimal(), v: 2, script: 'boxcade.toast("hi")' }).ok).toBe(true)
-    expect(validateGameDoc({ ...minimal(), script: 'boxcade.toast("hi")' }).ok).toBe(false)
-    expect(validateGameDoc({ ...minimal(), levels: [{ script: 'boxcade.toast("hi")' }] }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), v: 2, script: 'blobcade.toast("hi")' }).ok).toBe(true)
+    expect(validateGameDoc({ ...minimal(), script: 'blobcade.toast("hi")' }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), levels: [{ script: 'blobcade.toast("hi")' }] }).ok).toBe(false)
     expect(validateGameDoc({ ...minimal(), v: 2, script: 'x'.repeat(GAMEDOC_LIMITS.script + 1) }).ok).toBe(false)
     expect(validateGameDoc({ ...minimal(), v: 2, script: 42 }).ok).toBe(false)
   })
@@ -420,7 +428,7 @@ describe('validateGameDoc — multi-level docs (W2)', () => {
     ...extra,
   })
 
-  it('accepts a doc with levels that omit boxcade/v/meta', () => {
+  it('accepts a doc with levels that omit blobcade/v/meta', () => {
     const res = validateGameDoc({ ...minimal(), lighting: 'noon', levels: [lvl(), lvl({ lighting: 'night' })] })
     expect(res.ok).toBe(true)
     expect(res.warnings).toEqual([])

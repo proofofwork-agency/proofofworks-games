@@ -1,4 +1,4 @@
-// The Boxcade runtime: takes a GameDef from the SDK and runs it. One call:
+// The Blobcade runtime: takes a GameDef from the SDK and runs it. One call:
 //   const session = await runGame(def, mountEl, playerName)
 // runGame is the COMPOSITION ROOT: it builds the engine objects, wires the
 // internal runtime systems (systems/ — HUD shell, chat, pause, build mode,
@@ -154,7 +154,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         at, size, color: '#ffc94d', material: 'gold',
         onTouch: (ctx) => {
           ctx.celebrate('🏆 YOU WIN!')
-          ctx.earnBolts(25, 'victory')
+          ctx.earnBlobcash(25, 'victory')
           onWin?.(ctx)
         },
       })
@@ -336,7 +336,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         onChange: (eq) => {
           storeEq = eq
           selfAvatar.setShirtColor(eq.shirt?.color ?? selfShirt ?? selfAvatar.shirtColor)
-          hud.set('bolts', `B$ ${economy.balance}`)
+          hud.set('blobcash', `B$ ${economy.balance}`)
         },
         onBuy: (item) => opts.onStoreBuy?.(item),
       })
@@ -390,9 +390,9 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       const icon = info.headshot ? '🎯' : '⚔'
       ch.addKillLine(`<b>${escapeHtml(kn)}</b> ${icon} ${escapeHtml(info.victim.name)}`)
       if (info.killer === combat!.self) {
-        const bolts = info.headshot ? 15 : 10
-        economy.earn(bolts, 'kill')
-        hud.set('bolts', `B$ ${economy.balance}`)
+        const blobcash = info.headshot ? 15 : 10
+        economy.earn(blobcash, 'kill')
+        hud.set('blobcash', `B$ ${economy.balance}`)
       }
       if (info.victim === combat!.self) {
         ch.showRespawnOverlay()
@@ -500,11 +500,11 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         count: 10, colors: ['#ffc94d', '#fff3c4'], speed: 3, life: 0.5, gravity: -4, size: 0.3,
       })
     },
-    get bolts() { return economy.balance },
-    earnBolts(n, reason) {
+    get blobcash() { return economy.balance },
+    earnBlobcash(n, reason) {
       economy.earn(n, reason)
-      hud.set('bolts', `B$ ${economy.balance}`)
-      if (n >= 50) hud.toast(`B$ +${n} Bolts${reason ? ` — ${reason}` : ''}`)
+      hud.set('blobcash', `B$ ${economy.balance}`)
+      if (n >= 50) hud.toast(`B$ +${n} Blobcash${reason ? ` — ${reason}` : ''}`)
       // win pads and `win` rule actions both award with this reason — the
       // shell hooks it for leaderboards (best win time)
       if (reason === 'victory' && services.leaderboard) opts.onVictory?.((performance.now() - started) / 1000)
@@ -613,7 +613,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   for (const { at, weaponId } of pendingWeaponSpawns) {
     const wd = combat?.self.weapons.find((w) => w.id === weaponId) ?? WEAPONS[weaponId]
     if (!wd) {
-      console.warn(`[boxcade] weaponSpawn: unknown weapon '${weaponId}'`)
+      console.warn(`[blobcade] weaponSpawn: unknown weapon '${weaponId}'`)
       continue
     }
     const tint = wd.beamColor ?? wd.projectile?.color ?? '#cfd8e3'
@@ -865,7 +865,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       }
       if (e.attackerId === net.selfId) {
         economy.earn(10, 'pvp kill')
-        hud.set('bolts', `B$ ${economy.balance}`)
+        hud.set('blobcash', `B$ ${economy.balance}`)
       }
     }
     net.onPvpRespawn = (victimId) => {
@@ -1034,7 +1034,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   const systems = def.systems ?? []
   for (const s of systems) s.init?.(ctx)
   hud.set('players', `👥 ${ctx.playersOnline}`)
-  hud.set('bolts', `B$ ${economy.balance}`)
+  hud.set('blobcash', `B$ ${economy.balance}`)
 
   let trailT = 0
   let last = performance.now()

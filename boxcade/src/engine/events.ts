@@ -64,7 +64,7 @@ export class EventBus {
       try {
         h(payload)
       } catch (err) {
-        console.error(`[boxcade] event handler for '${type}' threw`, err)
+        console.error(`[blobcade] event handler for '${type}' threw`, err)
       }
     }
   }

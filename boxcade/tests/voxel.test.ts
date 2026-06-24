@@ -58,7 +58,7 @@ describe('VoxelWorld.deserialize rejects bad input', () => {
   })
 
   it('rejects a wrong / missing marker', () => {
-    expect(() => VoxelWorld.deserialize(JSON.stringify({ ...goodObj, boxcade: 'nope' })))
+    expect(() => VoxelWorld.deserialize(JSON.stringify({ ...goodObj, blobcade: 'nope' })))
       .toThrow(/voxel-world\/v1/i)
     expect(() => VoxelWorld.deserialize(JSON.stringify({ size: [8, 8, 8], rle: [1, 0] })))
       .toThrow(/voxel-world\/v1/i)
@@ -89,7 +89,7 @@ describe('VoxelWorld.deserialize rejects bad input', () => {
   })
 
   it('every friendly message is prefixed with "voxel world:"', () => {
-    for (const bad of ['{ not json', JSON.stringify({ boxcade: 'x' })]) {
+    for (const bad of ['{ not json', JSON.stringify({ blobcade: 'x' })]) {
       try {
         VoxelWorld.deserialize(bad)
         throw new Error('expected throw')

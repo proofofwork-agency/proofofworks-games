@@ -1,4 +1,4 @@
-// The Boxcade Studio — in-world 3D creation for non-programmers. A studio
+// The Blobcade Studio — in-world 3D creation for non-programmers. A studio
 // session is its own composition root (like runtime/runtime.ts, but for
 // editing): it drives the engine subsystems directly over a GameDoc draft.
 // Every edit is a doc-op — mutate() snapshots the doc for undo, applies the
@@ -85,9 +85,9 @@ export interface StudioApi {
 }
 
 export const createStarterStudioDoc = (): GameDoc => ({
-  boxcade: 'gamedoc',
+  blobcade: 'gamedoc',
   v: 1,
-  meta: { name: 'My Studio Game', emoji: '🧱', genre: 'Obby', blurb: 'Built in the Boxcade Studio.' },
+  meta: { name: 'My Studio Game', emoji: '🧱', genre: 'Obby', blurb: 'Built in the Blobcade Studio.' },
   camera: 'orbit',
   lighting: 'noon',
   spawn: [0, 2.6, 6],
@@ -933,7 +933,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     saveNow,
     testPlay() {
       saveNow()
-      localStorage.setItem('boxcade.returnTo', viewMode === 'floorplan' ? `#/studio/${draftKey}?floorplan=1` : `#/studio/${draftKey}`)
+      localStorage.setItem('blobcade.returnTo', viewMode === 'floorplan' ? `#/studio/${draftKey}?floorplan=1` : `#/studio/${draftKey}`)
       location.hash = `#/play/draft/${draftKey}`
     },
     async share() {
@@ -946,7 +946,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `${slugifyName(doc.meta.name)}.boxcade.json`
+      a.download = `${slugifyName(doc.meta.name)}.blobcade.json`
       a.click()
       URL.revokeObjectURL(a.href)
       return { copied: false, tooBig: true }
@@ -965,7 +965,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `${slugifyName(doc.meta.name)}.boxcade.json`
+      a.download = `${slugifyName(doc.meta.name)}.blobcade.json`
       a.click()
       URL.revokeObjectURL(a.href)
     },

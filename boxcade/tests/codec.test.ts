@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
 import { encodeGameDoc, decodeGameDoc, hashGameDoc, SHARE_LINK_LIMIT } from '../src/sdk/codec'
 
 const doc = {
-  boxcade: 'gamedoc',
+  blobcade: 'gamedoc',
   v: 1,
   meta: { name: 'Codec Test', emoji: '🧪' },
   parts: [
@@ -42,7 +42,7 @@ describe('codec', () => {
     // valid deflate of a non-JSON string
     const bogus = await encodeGameDoc('this is not json')
     // encodeGameDoc(string) treats it as pre-stringified JSON; decoding parses → throws
-    await expect(decodeGameDoc(bogus)).rejects.toThrow(/Boxcade/)
+    await expect(decodeGameDoc(bogus)).rejects.toThrow(/Blobcade/)
   })
 
   it('hashGameDoc is stable and discriminating', () => {

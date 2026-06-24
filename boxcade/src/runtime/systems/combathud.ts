@@ -116,7 +116,7 @@ export function createCombatHudSystem(deps: {
   updateHealth(combat.self.health, combat.self.maxHealth)
 
   return {
-    id: 'boxcade:combat-hud',
+    id: 'blobcade:combat-hud',
     updateHealth,
     updateAmmo,
     renderWeaponBar,

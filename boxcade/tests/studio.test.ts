@@ -33,7 +33,7 @@ describe('Studio Floor Plan integration', () => {
 
   it('opens legacy editor draft links without rewriting the draft', () => {
     const doc: GameDoc = {
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Existing', emoji: '🧪', genre: 'Custom' },
       camera: 'orbit',
@@ -42,12 +42,12 @@ describe('Studio Floor Plan integration', () => {
       rules: [],
     }
     const key = saveDraft(null, doc)
-    const rawBefore = localStorage.getItem(`boxcade.draft.${key}`)
+    const rawBefore = localStorage.getItem(`blobcade.draft.${key}`)
 
     const resolved = resolveEditorDraftKeyForStudio(`#/editor?draft=${key}`)
 
     expect(resolved).toBe(key)
-    expect(localStorage.getItem(`boxcade.draft.${key}`)).toBe(rawBefore)
+    expect(localStorage.getItem(`blobcade.draft.${key}`)).toBe(rawBefore)
     expect(loadDraft(key)?.parts).toEqual(doc.parts)
   })
 

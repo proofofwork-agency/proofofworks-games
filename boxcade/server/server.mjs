@@ -1,4 +1,4 @@
-// Boxcade server — one process, one port: the publish/discovery REST API
+// Blobcade server — one process, one port: the publish/discovery REST API
 // (server/http.mjs + node:sqlite) and the multiplayer relay share it.
 // Plain JS on purpose: `node server/server.mjs` and you're online.
 //
@@ -39,7 +39,7 @@ const server = http.createServer((req, res) => {
   handleApi(req, res).then((handled) => {
     if (!handled) {
       res.writeHead(404, { 'content-type': 'text/plain', 'access-control-allow-origin': '*' })
-      res.end('Boxcade server: API at /api/*, websocket on this port.')
+      res.end('Blobcade server: API at /api/*, websocket on this port.')
     }
   }).catch(() => {
     try {
@@ -175,7 +175,7 @@ wss.on('connection', (ws) => {
           .map((c) => ({ id: c.id, n: c.name, p: c.p, r: c.r })),
       }))
       broadcast(r, { t: 'j', id: client.id, n: client.name, p: client.p, r: client.r }, client.id)
-      console.log(`[boxcade] ${client.name}#${client.id} joined ${key} (${r.size} in room)`)
+      console.log(`[blobcade] ${client.name}#${client.id} joined ${key} (${r.size} in room)`)
       return
     }
 
@@ -246,7 +246,7 @@ wss.on('connection', (ws) => {
     for (const c of r.values()) c.interestAt.delete(client.id)
     broadcast(r, { t: 'l', id: client.id })
     if (wasHost && r.size > 0) broadcast(r, { t: 'h', id: hostOf(r) })
-    console.log(`[boxcade] ${client.name}#${client.id} left ${client.roomKey} (${r.size} in room)`)
+    console.log(`[blobcade] ${client.name}#${client.id} left ${client.roomKey} (${r.size} in room)`)
     if (r.size === 0) {
       rooms.delete(client.roomKey)
       roomCaps.delete(client.roomKey)
@@ -303,9 +303,9 @@ setInterval(() => {
 server.listen(PORT, () => {
   console.log(`
   ███████╗██████╗ ███████╗███████╗██████╗ ██╗      ██████╗ ██╗  ██╗
-  Boxcade server on http://localhost:${PORT}
+  Blobcade server on http://localhost:${PORT}
   · multiplayer relay (websocket, room instances + host + event relay)
-  · publish API at /api/games (node:sqlite, local file server/boxcade.db)
+  · publish API at /api/games (node:sqlite, local file server/blobcade.db)
   Ctrl-C to stop.
 `)
 })

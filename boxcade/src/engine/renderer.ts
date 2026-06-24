@@ -4,7 +4,7 @@
 //   - GTAO ground-truth ambient occlusion
 //   - PCF soft cascading-ish sun shadows that follow the player
 // ...applied to deliberately simple blocky geometry. Premium light on
-// friendly shapes is the whole Boxcade aesthetic.
+// friendly shapes is the whole Blobcade aesthetic.
 
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -106,7 +106,7 @@ export class Renderer {
       this.scene.environmentIntensity = 0.5
       pmrem.dispose()
     } catch (err) {
-      console.warn('[boxcade] environment map unavailable, continuing without IBL', err)
+      console.warn('[blobcade] environment map unavailable, continuing without IBL', err)
     }
 
     // ---- post-processing stack ----
@@ -128,7 +128,7 @@ export class Renderer {
       this.gtao.blendIntensity = 0.6
       this.composer.addPass(this.gtao)
     } catch (err) {
-      console.warn('[boxcade] GTAO unavailable, continuing without AO', err)
+      console.warn('[blobcade] GTAO unavailable, continuing without AO', err)
     }
 
     this.bloom = new UnrealBloomPass(
@@ -179,7 +179,7 @@ export class Renderer {
       this.ssr = ssr
       this.ssrActive = true
     } catch (err) {
-      console.warn('[boxcade] SSR unavailable, continuing without reflections', err)
+      console.warn('[blobcade] SSR unavailable, continuing without reflections', err)
     }
   }
 

@@ -12,7 +12,7 @@ import { EventBus } from '../src/engine/events'
 import { makeRecordingBuilder, type LogEntry } from './helpers/recording-builder'
 
 const castleDoc = {
-  boxcade: 'gamedoc' as const,
+  blobcade: 'gamedoc' as const,
   v: 1,
   meta: {
     id: 'castle-run-doc',
@@ -101,11 +101,11 @@ describe('castle-run GameDoc parity', () => {
 
   it('throws GameDocError with friendly lines on invalid docs', () => {
     try {
-      buildGameFromDoc({ boxcade: 'gamedoc', v: 999, meta: { name: 'x' } })
+      buildGameFromDoc({ blobcade: 'gamedoc', v: 999, meta: { name: 'x' } })
       expect.unreachable('should have thrown')
     } catch (err) {
       expect(err).toBeInstanceOf(GameDocError)
-      expect((err as GameDocError).errors.join(' ')).toMatch(/newer Boxcade/)
+      expect((err as GameDocError).errors.join(' ')).toMatch(/newer Blobcade/)
     }
   })
 })
@@ -113,10 +113,10 @@ describe('castle-run GameDoc parity', () => {
 describe('interactive prefabs through the interpreter', () => {
   it('requires explicit permission for scripted docs', () => {
     const doc = {
-      boxcade: 'gamedoc' as const,
+      blobcade: 'gamedoc' as const,
       v: 2,
       meta: { name: 'Scripted' },
-      script: 'boxcade.toast("hi")',
+      script: 'blobcade.toast("hi")',
     }
     expect(() => buildGameFromDoc(doc)).toThrow(GameDocError)
     const def = buildGameFromDoc(doc, { allowScripts: true })
@@ -125,7 +125,7 @@ describe('interactive prefabs through the interpreter', () => {
 
   it('places water as a non-solid water material volume', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Water Test' },
       parts: [
@@ -145,7 +145,7 @@ describe('interactive prefabs through the interpreter', () => {
 
   it('button + door + mover place parts and wire rules', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Door Test' },
       parts: [
@@ -166,7 +166,7 @@ describe('interactive prefabs through the interpreter', () => {
 
 describe('custom weapons-as-data through the interpreter', () => {
   const weaponDoc = {
-    boxcade: 'gamedoc' as const,
+    blobcade: 'gamedoc' as const,
     v: 1,
     meta: { id: 'arena-x', name: 'Arena X' },
     weapons: [
@@ -219,7 +219,7 @@ describe('custom weapons-as-data through the interpreter', () => {
 describe('portal parts through the interpreter (W2)', () => {
   it('places a frame + pane + touch slab (+ optional label) and wires goToGame', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Hub' },
       parts: [
@@ -254,7 +254,7 @@ describe('portal parts through the interpreter (W2)', () => {
 
   it('uses the default ring size + color and omits the label when unset', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc', v: 1, meta: { name: 'Hub' },
+      blobcade: 'gamedoc', v: 1, meta: { name: 'Hub' },
       parts: [{ kind: 'portal', at: [1, 2, 3], target: 'home' }],
     })
     const rb = makeRecordingBuilder()
@@ -270,7 +270,7 @@ describe('portal parts through the interpreter (W2)', () => {
 describe('vehicle parts through the interpreter (W3)', () => {
   it('calls the vehicle builder with type, position and options', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Garage' },
       parts: [
@@ -292,7 +292,7 @@ describe('vehicle parts through the interpreter (W3)', () => {
 describe('ladder parts through the interpreter', () => {
   it('places a non-solid climbable part', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Climb' },
       parts: [
@@ -318,7 +318,7 @@ describe('ladder parts through the interpreter', () => {
 describe('physics hitboxes and gravity zones through the interpreter (W3)', () => {
   it('passes fallDamage into GameDef physics', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Hard Landing' },
       physics: { gravity: -46, fallDamage: true },
@@ -328,7 +328,7 @@ describe('physics hitboxes and gravity zones through the interpreter (W3)', () =
 
   it('passes part hitbox through to w.add', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Tight Collision' },
       parts: [
@@ -343,7 +343,7 @@ describe('physics hitboxes and gravity zones through the interpreter (W3)', () =
 
   it('builds gravity zones as glass parts with gravityZone set', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Moon Room' },
       parts: [
@@ -384,7 +384,7 @@ describe('physics hitboxes and gravity zones through the interpreter (W3)', () =
 describe('platform services through the interpreter (W4)', () => {
   it('passes services through to the GameDef', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Shop Game' },
       services: {
@@ -408,7 +408,7 @@ describe('platform services through the interpreter (W4)', () => {
 
   it('passes maxPlayers through to the GameDef', () => {
     const def = buildGameFromDoc({
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'Big Room' },
       maxPlayers: 100,
@@ -419,7 +419,7 @@ describe('platform services through the interpreter (W4)', () => {
 
 describe('multi-level docs through the interpreter (W2)', () => {
   const multi = {
-    boxcade: 'gamedoc' as const,
+    blobcade: 'gamedoc' as const,
     v: 1,
     meta: { id: 'tower', name: 'Tower', blurb: 'Climb it.' },
     lighting: 'noon',

@@ -27,7 +27,7 @@ export interface SkyPreset {
  * use its name in w.lighting('my-preset') or an @lighting map directive.
  */
 export function registerSkyPreset(name: string, preset: SkyPreset) {
-  if (SKY_PRESETS[name]) console.warn(`[boxcade] registerSkyPreset: overwriting '${name}'`)
+  if (SKY_PRESETS[name]) console.warn(`[blobcade] registerSkyPreset: overwriting '${name}'`)
   SKY_PRESETS[name] = preset
 }
 

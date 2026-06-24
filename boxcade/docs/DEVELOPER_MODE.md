@@ -1,6 +1,6 @@
 # Trusted TypeScript Developer Mode
 
-Boxcade has two creation paths:
+Blobcade has two creation paths:
 
 - **Studio Mode**: GameDoc, visual building, rules, sandboxed scripts, share
   links, and the public creator path.

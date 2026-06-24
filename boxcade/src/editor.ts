@@ -1,4 +1,4 @@
-// The Boxcade floor-plan painter. The 2D tile-grid painter is now a mountable
+// The Blobcade floor-plan painter. The 2D tile-grid painter is now a mountable
 // COMPONENT (mountFloorPlan) that edits a single textmap string through a small
 // host-supplied port (getTextmap / setTextmap / onClose). The Studio mounts it
 // as an in-world overlay so painting tiles rebuilds the 3D view live; the
@@ -6,12 +6,12 @@
 // meta form + no-code "Game Logic" rules panel + share/test/download actions.
 //
 // The text map is still the world format; in standalone mode it's wrapped in
-// { boxcade:'gamedoc', v:1, meta, camera, textmap, rules }.
+// { blobcade:'gamedoc', v:1, meta, camera, textmap, rules }.
 //
 // Standalone draft lifecycle (#/editor):
 //   - #/editor?draft=<key>  → edits that draft (loadDraft)
 //   - #/editor (no param)   → continues the LAST-edited draft if one exists
-//                             (key in localStorage 'boxcade.editor.lastDraft'),
+//                             (key in localStorage 'blobcade.editor.lastDraft'),
 //                             otherwise starts a fresh unsaved draft.
 //   - first save assigns a key (saveDraft(null,…)), which we remember in
 //     lastDraft and reflect into the hash so reloads stay on the same draft.
@@ -30,9 +30,9 @@ import { saveDraft, loadDraft, listDrafts } from './drafts'
 import castleRaw from './maps/castle.txt?raw'
 import faceRaw from './maps/facing-towers.txt?raw'
 
-const STORE_KEY = 'boxcade.editor.map'
-const LAST_DRAFT_KEY = 'boxcade.editor.lastDraft'
-export const CUSTOM_MAP_KEY = 'boxcade.customMap'
+const STORE_KEY = 'blobcade.editor.map'
+const LAST_DRAFT_KEY = 'blobcade.editor.lastDraft'
+export const CUSTOM_MAP_KEY = 'blobcade.customMap'
 
 interface TileInfo { ch: string; name: string; color: string; text?: string }
 
@@ -148,7 +148,7 @@ function doIdOf(action: RuleAction): string {
 //  reads the initial source via opts.getTextmap() (falling back to a starter
 //  grid) and pushes every paint/resize/edit back through opts.setTextmap(),
 //  debounced. opts.onClose() is called when the user dismisses it (the Studio
-//  overlay hides; standalone wires it to "back to Boxcade").
+//  overlay hides; standalone wires it to "back to Blobcade").
 //
 //  Panning: left-drag paints, right-drag erases, and SPACE+drag OR
 //  middle-mouse-drag pans the (scrollable) grid viewport. The grid lives in an
@@ -268,7 +268,7 @@ export function mountFloorPlan(host: HTMLElement, opts: FloorPlanPort): FloorPla
         <textarea id="fpText" class="ed-text" spellcheck="false"></textarea>
         <div class="ed-sizebar">
           <button class="btn small ghost" id="fpApply">⤴ Apply text to grid</button>
-          <span class="ed-hint">paste or edit any Boxcade text map here</span>
+          <span class="ed-hint">paste or edit any Blobcade text map here</span>
         </div>
       </div>
     </div>`
@@ -845,13 +845,13 @@ export function renderEditor(app: HTMLElement): { dispose(): void } {
   app.innerHTML = `
     <div class="editor">
       <div class="ed-top">
-        <button class="hud-home" id="edHome">⬅ Boxcade</button>
+        <button class="hud-home" id="edHome">⬅ Blobcade</button>
         <h2>🗺 Game Editor <span class="ed-sub-title">2D floor plan — tiles &amp; layers</span></h2>
         <div class="ed-actions">
           <button class="btn small" id="edTest">▶ Test play</button>
           <button class="btn small ghost" id="edStudio" title="Same game, full 3D: add parts, weapons, terrain and logic on top of this floor plan">🧱 Open in Studio</button>
           <button class="btn small ghost" id="edShare">🔗 Copy share link</button>
-          <button class="btn small ghost" id="edJson">⬇ Download .boxcade.json</button>
+          <button class="btn small ghost" id="edJson">⬇ Download .blobcade.json</button>
           <button class="btn small ghost" id="edDownload">⬇ Download .txt</button>
           <span class="ed-status" id="edStatus"></span>
         </div>
@@ -1186,7 +1186,7 @@ export function renderEditor(app: HTMLElement): { dispose(): void } {
   /** assemble the live doc from textmap + meta + rules */
   function buildDoc(): GameDoc {
     const out: GameDoc = {
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { ...doc!.meta, name: (doc!.meta.name || 'My Game').slice(0, 48) },
       camera: 'orbit',
@@ -1283,7 +1283,7 @@ export function renderEditor(app: HTMLElement): { dispose(): void } {
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `${slugifyName(doc.meta.name)}.boxcade.json`
+    a.download = `${slugifyName(doc.meta.name)}.blobcade.json`
     a.click()
     URL.revokeObjectURL(a.href)
   }
@@ -1323,7 +1323,7 @@ function migrateLegacyOrNew(): GameDoc {
   const legacy = localStorage.getItem(STORE_KEY)
   if (legacy && legacy.trim() !== '' && listDrafts().length === 0) {
     return {
-      boxcade: 'gamedoc',
+      blobcade: 'gamedoc',
       v: 1,
       meta: { name: 'My Game', emoji: '🗺', genre: 'Obby', gradient: GRADIENTS[0] },
       camera: 'orbit',
@@ -1332,7 +1332,7 @@ function migrateLegacyOrNew(): GameDoc {
     }
   }
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 1,
     meta: { name: 'My Game', emoji: '🗺', genre: 'Obby', gradient: GRADIENTS[0] },
     camera: 'orbit',

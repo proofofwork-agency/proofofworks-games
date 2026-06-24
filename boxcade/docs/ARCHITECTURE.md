@@ -1,4 +1,4 @@
-# Boxcade architecture
+# Blobcade architecture
 
 How the engine is put together, which design patterns hold it up, and every
 extension point the SDK exposes. Read this before adding engine features.
@@ -34,10 +34,10 @@ the design is wrong — invert it with an event, registry or config field.
 | `events.ts` | typed pub/sub bus | Observer |
 | `avatar.ts` | procedural blocky character, health bar, hit flash | — |
 | `camera.ts` `input.ts` | rigs + input state | Strategy (orbit/fp rigs) |
-| `network.ts` | ws rooms, interpolation, offline fallback | — |
+| `network.ts` | ws rooms, interpolation, room codes, relayed events, PvP verdict callbacks, offline fallback | — |
 | `audio.ts` | WebAudio synth, all sounds are code | — |
 | `fx.ts` | one-draw-call particle pool | Object pool |
-| `economy.ts` | Bolts wallet/shop (localStorage) | — |
+| `economy.ts` | Blobcash wallet/shop (localStorage) | — |
 
 `runtime/runtime.ts` is the **composition root**: it builds these objects,
 hands games a `GameContext`, and runs the loop. Games receive capabilities
@@ -147,6 +147,8 @@ in `runtime.ts` on purpose: they read and write the physics step.
 - Vehicles / remote-avatar LOD / voxel co-build sync are the next extraction
   candidates if `runtime.ts` keeps growing — each needs a frame-position-
   preserving seam like build mode's.
-- Server-authoritative combat (PvP) will move hit resolution behind an
-  interface so local + server authority become swappable strategies.
+- PvP currently uses client hit claims plus server-side plausibility caps and
+  server-owned HP verdicts; fully server-authoritative combat will move hit
+  resolution behind an interface so local + server authority become swappable
+  strategies.
 - Renderer post stack could expose a pass registry (insert custom passes).

@@ -1,4 +1,4 @@
-// Multiplayer client. Talks to the Boxcade room server over WebSocket,
+// Multiplayer client. Talks to the Blobcade room server over WebSocket,
 // keeps a snapshot buffer per remote player and interpolates 120ms in the
 // past for silky movement. If no server is reachable the game silently
 // plays solo — multiplayer is an upgrade, never a requirement.

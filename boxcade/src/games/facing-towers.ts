@@ -1,7 +1,7 @@
 // Facing Towers — two towers, one bridge, deep space: the classic arena-CTF
 // archetype, built from scratch. 3v3 capture the flag against bots, the
 // full weapon arsenal, low gravity. All geometry, names and assets are
-// Boxcade originals — see README "Licensing & inspirations".
+// Blobcade originals — see README "Licensing & inspirations".
 
 import { defineGame, buildTextMap, v3, DEFAULT_LOADOUT, type Vec3, type GameContext, type EntityApi, type PartHandle, type TextMapResult } from '../sdk'
 import { audio } from '../engine/audio'
@@ -196,13 +196,13 @@ export default defineGame({
           audio.capture()
           ctx.hud.set('score', `🔴 ${score.red} — ${score.blue} 🔵`)
           ctx.hud.big(`${e.team === 'red' ? '🔴' : '🔵'} ${e.team.toUpperCase()} SCORES!`, 2000)
-          if (e.isSelf) ctx.earnBolts(50, 'flag capture')
+          if (e.isSelf) ctx.earnBlobcash(50, 'flag capture')
 
           if (score[e.team as 'red' | 'blue'] >= CAPS_TO_WIN) {
             roundOver = true
             const selfWon = e.team === 'red'
             ctx.celebrate(selfWon ? '🏆 RED WINS!' : '🔵 BLUE WINS')
-            if (selfWon) ctx.earnBolts(150, 'match win')
+            if (selfWon) ctx.earnBlobcash(150, 'match win')
             setTimeout(() => resetRound(ctx), 4500)
           }
         }

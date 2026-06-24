@@ -29,7 +29,7 @@ export interface Template {
 // win pad high up.
 function makeObby(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 1,
     meta: {
       name: 'Classic Obby',
@@ -97,7 +97,7 @@ function makeObby(): GameDoc {
 // and a center spawn. Combat enables weapons, health and bots.
 function makeArena(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 1,
     meta: {
       name: 'Bot Arena',
@@ -159,7 +159,7 @@ function makeArena(): GameDoc {
 // welcome label and a start toast. No goal — just build.
 function makeSandbox(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 1,
     meta: {
       name: 'Voxel Sandbox',
@@ -191,7 +191,7 @@ function makeSandbox(): GameDoc {
 // slides open), and a win pad on top. killY tuned to the tower base.
 function makeTower(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 1,
     meta: {
       name: 'Parkour Tower',
@@ -267,7 +267,7 @@ function makeTower(): GameDoc {
 
 function makeWaveSurvival(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 2,
     meta: {
       name: 'Scripted Wave Survival',
@@ -296,20 +296,20 @@ function makeWaveSurvival(): GameDoc {
 let nextAt = 1
 const spawns = [[22,3,22],[-22,3,22],[22,3,-22],[-22,3,-22]]
 
-boxcade.onStart(() => {
-  boxcade.setSpawnPoints([[0,3,0]])
-  boxcade.toast('Scripted game mode: survive as long as you can.')
+blobcade.onStart(() => {
+  blobcade.setSpawnPoints([[0,3,0]])
+  blobcade.toast('Scripted game mode: survive as long as you can.')
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost || time < nextAt) return
   wave += 1
-  boxcade.setVar('wave', wave)
-  boxcade.big('Wave ' + wave)
+  blobcade.setVar('wave', wave)
+  blobcade.big('Wave ' + wave)
   const count = Math.min(14, 2 + wave * 2)
   for (let i = 0; i < count; i++) {
     const s = spawns[i % spawns.length]
-    boxcade.spawnBot({ name: 'Raider ' + wave + '-' + i, team: 'enemy', skill: Math.min(1, 0.35 + wave * 0.05), spawns: [s], shirt: '#e74c3c' })
+    blobcade.spawnBot({ name: 'Raider ' + wave + '-' + i, team: 'enemy', skill: Math.min(1, 0.35 + wave * 0.05), spawns: [s], shirt: '#e74c3c' })
   }
   nextAt = time + Math.max(8, 18 - wave)
 })
@@ -319,7 +319,7 @@ boxcade.onTick((time, dt, state) => {
 
 function makeCtfArena(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 2,
     meta: {
       name: 'Scripted CTF Arena',
@@ -348,21 +348,21 @@ function makeCtfArena(): GameDoc {
 const redBase = [0,3,-24]
 const blueBase = [0,3,24]
 
-boxcade.onStart(() => {
-  boxcade.setSpawnPoints([[0,3,-20],[-5,3,-22],[5,3,-22]])
-  boxcade.toast('Starter CTF script: bots push toward the enemy flag.')
+blobcade.onStart(() => {
+  blobcade.setSpawnPoints([[0,3,-20],[-5,3,-22],[5,3,-22]])
+  blobcade.toast('Starter CTF script: bots push toward the enemy flag.')
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost) return
   if (!booted) {
     booted = true
-    for (let i = 0; i < 3; i++) boxcade.spawnBot({ name: 'Blue ' + (i + 1), team: 'blue', skill: 0.45 + i * 0.1, spawns: [[0,3,20],[-5,3,22],[5,3,22]], shirt: '#3b82f6' })
-    for (let i = 0; i < 2; i++) boxcade.spawnBot({ name: 'Red ' + (i + 1), team: 'red', skill: 0.45 + i * 0.1, spawns: [[-5,3,-22],[5,3,-22]], shirt: '#e74c3c' })
+    for (let i = 0; i < 3; i++) blobcade.spawnBot({ name: 'Blue ' + (i + 1), team: 'blue', skill: 0.45 + i * 0.1, spawns: [[0,3,20],[-5,3,22],[5,3,22]], shirt: '#3b82f6' })
+    for (let i = 0; i < 2; i++) blobcade.spawnBot({ name: 'Red ' + (i + 1), team: 'red', skill: 0.45 + i * 0.1, spawns: [[-5,3,-22],[5,3,-22]], shirt: '#e74c3c' })
   }
   for (const e of state.entities) {
     if (!e.isBot || !e.alive) continue
-    boxcade.entity(e.id).setObjective(e.team === 'red' ? blueBase : redBase)
+    blobcade.entity(e.id).setObjective(e.team === 'red' ? blueBase : redBase)
   }
 })
 `,
@@ -371,7 +371,7 @@ boxcade.onTick((time, dt, state) => {
 
 function makeMiniRoyale(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 2,
     meta: {
       name: 'Mini Royale',
@@ -402,31 +402,31 @@ let nextGas = 6
 let radius = 40
 const drops = [[-22,35,-22],[22,35,22],[-24,35,18],[18,35,-24]]
 
-boxcade.onStart(() => {
-  boxcade.toast('Mini Royale: loot up and stay near the center.')
+blobcade.onStart(() => {
+  blobcade.toast('Mini Royale: loot up and stay near the center.')
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost) return
   if (!booted) {
     booted = true
     for (let i = 0; i < drops.length; i++) {
-      boxcade.spawnBot({ name: 'Dropper ' + (i + 1), team: 'enemy', skill: 0.45 + i * 0.08, spawns: [drops[i]], shirt: '#3b82f6' })
+      blobcade.spawnBot({ name: 'Dropper ' + (i + 1), team: 'enemy', skill: 0.45 + i * 0.08, spawns: [drops[i]], shirt: '#3b82f6' })
     }
-    for (const e of state.entities) if (e.isBot) boxcade.entity(e.id).deploy(drops[0])
+    for (const e of state.entities) if (e.isBot) blobcade.entity(e.id).deploy(drops[0])
   }
   if (time >= nextGas) {
     radius = Math.max(8, radius - 4)
-    boxcade.setVar('gas', radius)
-    boxcade.toast('Gas radius: ' + radius)
+    blobcade.setVar('gas', radius)
+    blobcade.toast('Gas radius: ' + radius)
     nextGas = time + 8
   }
   for (const e of state.entities) {
     if (!e.alive) continue
     const p = e.position
     const outside = Math.hypot(p[0], p[2]) > radius
-    if (outside) boxcade.entity(e.id).hurt(4, 'gas', '☣')
-    if (e.isBot) boxcade.entity(e.id).setObjective([0, 2, 0])
+    if (outside) blobcade.entity(e.id).hurt(4, 'gas', '☣')
+    if (e.isBot) blobcade.entity(e.id).setObjective([0, 2, 0])
   }
 })
 `,

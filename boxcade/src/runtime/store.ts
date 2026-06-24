@@ -1,12 +1,12 @@
-// The per-game Bolts store — GameServices.store rendered as a HUD button +
+// The per-game Blobcash store — GameServices.store rendered as a HUD button +
 // buy/equip overlay. Purchases and equips persist per game in localStorage;
-// the wallet is the global Bolts balance. The runtime reacts through
+// the wallet is the global Blobcash balance. The runtime reacts through
 // onChange (recolor the avatar / trail); the shell hears onBuy (creator cut).
 
 import { economy } from '../engine/economy'
 import type { StoreItemDef } from '../sdk'
 
-const KEY_PREFIX = 'boxcade.store.'
+const KEY_PREFIX = 'blobcade.store.'
 
 interface Persisted {
   owned: string[]
@@ -66,7 +66,7 @@ export function createGameStore(opts: {
   button.className = 'hud-chip'
   button.textContent = '🛍️ Store'
   button.style.cursor = 'pointer'
-  button.title = 'This game sells cosmetics for Bolts'
+  button.title = 'This game sells cosmetics for Blobcash'
 
   let overlay: HTMLElement | null = null
   const close = () => {
@@ -104,7 +104,7 @@ export function createGameStore(opts: {
         const owned = state.owned.includes(item.id)
         if (!owned) {
           if (!economy.spend(item.price)) {
-            opts.toast('Not enough Bolts — play to earn more!')
+            opts.toast('Not enough Blobcash — play to earn more!')
             return
           }
           state.owned.push(item.id)
