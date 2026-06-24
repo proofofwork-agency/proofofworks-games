@@ -276,13 +276,12 @@ async function route() {
   if (shared) {
     booting = true
     try {
-      const doc = await decodeGameDoc(shared[1])
-      const gameDoc = doc as GameDoc
+      const gameDoc = await decodeGameDoc(shared[1])
       const allowScripts = await ensureScriptAllowed(gameDoc, 'a shared link')
       if (hasScript(gameDoc) && !allowScripts) throw new Error('script permission was not granted')
       const def = buildGameFromDoc(gameDoc, { allowScripts })
       // players holding the same link land in the same room family
-      const roomKey = `d-${hashGameDoc(doc as object)}${roomSuffix()}`
+      const roomKey = `d-${hashGameDoc(gameDoc)}${roomSuffix()}`
       const runOpts: RunGameOptions = { roomKey }
       runOpts.onGoToGame = (target) =>
         handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(gameDoc, n, roomKey, runOpts, allowScripts) })
