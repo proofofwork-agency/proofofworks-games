@@ -18,12 +18,17 @@ import {
   createGame, updateGame, unpublishGame, getGame, getGameMeta, listGames,
   bumpPlay, likeGame, reportGame, adminSetHidden, adminList,
   getEarnings, claimEarnings, creditStoreEarnings, submitScore, topScores,
-  validImageThumb,
+  validImageThumb, cleanMetaBlurb, validMetaGradient,
 } from './db.mjs'
+import { timingSafeEqual } from 'node:crypto'
 
 const MAX_BODY = 300 * 1024
 const MAX_DOC = 256 * 1024
 const ADMIN_TOKEN = process.env.BOXCADE_ADMIN_TOKEN ?? ''
+const SECURITY_HEADERS = {
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+}
 
 // ---- per-IP rate limiting (token bucket, writes only) ----
 const buckets = new Map()
@@ -95,11 +100,18 @@ export function validateEmbedUrl(input) {
   return null
 }
 
-/** drop thumbnails that aren't small raster data-URIs before they're stored */
-function stripInvalidThumb(doc) {
-  if (doc && typeof doc === 'object' && doc.meta && typeof doc.meta === 'object' &&
-      doc.meta.thumb !== undefined && !validImageThumb(doc.meta.thumb)) {
+/** strip unsafe card metadata before it is stored */
+function sanitizeDocMeta(doc) {
+  if (!doc || typeof doc !== 'object' || !doc.meta || typeof doc.meta !== 'object') return
+  if (doc.meta.thumb !== undefined && !validImageThumb(doc.meta.thumb)) {
     delete doc.meta.thumb
+  }
+  if (doc.meta.blurb !== undefined) {
+    doc.meta.blurb = cleanMetaBlurb(doc.meta.blurb)
+  }
+  if (doc.meta.gradient !== undefined) {
+    if (validMetaGradient(doc.meta.gradient)) doc.meta.gradient = doc.meta.gradient.trim().slice(0, 200)
+    else delete doc.meta.gradient
   }
 }
 
@@ -135,6 +147,7 @@ function normalizeDocMarker(doc) {
 function send(res, status, body) {
   const json = JSON.stringify(body)
   res.writeHead(status, {
+    ...SECURITY_HEADERS,
     'content-type': 'application/json',
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
@@ -142,6 +155,17 @@ function send(res, status, body) {
     'cache-control': 'no-store',
   })
   res.end(json)
+}
+
+function adminTokenMatches(input) {
+  if (!ADMIN_TOKEN || typeof input !== 'string') return false
+  const expected = Buffer.from(ADMIN_TOKEN)
+  const actual = Buffer.from(input)
+  return actual.length === expected.length && timingSafeEqual(actual, expected)
+}
+
+function expectedClientError(err) {
+  return err instanceof Error && (err.message === 'body too large' || err.message === 'invalid JSON body')
 }
 
 function readBody(req) {
@@ -254,7 +278,7 @@ export async function handleApi(req, res) {
         send(res, 201, out)
         return true
       }
-      stripInvalidThumb(body.doc)
+      sanitizeDocMeta(body.doc)
       normalizeDocMarker(body.doc)
       const docText = JSON.stringify(body.doc ?? null)
       const err = checkDoc(docText)
@@ -276,7 +300,7 @@ export async function handleApi(req, res) {
         return true
       }
       const body = await readBody(req)
-      stripInvalidThumb(body.doc)
+      sanitizeDocMeta(body.doc)
       normalizeDocMarker(body.doc)
       const docText = JSON.stringify(body.doc ?? null)
       const err = checkDoc(docText)
@@ -340,7 +364,7 @@ export async function handleApi(req, res) {
 
     // ---- moderation ----
     if (path.startsWith('/api/admin/')) {
-      if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+      if (!adminTokenMatches(req.headers['x-admin-token'])) {
         send(res, 403, { error: 'admin token required (set BOXCADE_ADMIN_TOKEN)' })
         return true
       }
@@ -359,7 +383,11 @@ export async function handleApi(req, res) {
     send(res, 404, { error: 'unknown api route' })
     return true
   } catch (err) {
-    send(res, 400, { error: err instanceof Error ? err.message : 'bad request' })
+    if (expectedClientError(err)) send(res, 400, { error: err.message })
+    else {
+      console.error('[blobcade api]', err)
+      send(res, 500, { error: 'server error' })
+    }
     return true
   }
 }
