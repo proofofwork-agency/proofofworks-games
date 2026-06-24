@@ -1,14 +1,24 @@
-// The Blobcade avatar: a friendly blob character built from
-// cached soft primitives, with a canvas-drawn face, procedural walk/jump animation,
-// a floating name tag and chat bubbles. No rigs, no assets — pure code.
+// Blobby — the Blobcade avatar: a friendly blob character built from cached soft
+// primitives, with a canvas-drawn face and a procedural skeleton (two-segment
+// arms/legs with bending elbows & knees, feet, a waist-pivoting spine and a
+// bouncing head) animated for walk / run / jump. Cosmetics attach to the named
+// `anchors` and recolor via the skin/shirt/pants/shoe slots. No rigs, no assets —
+// pure code.
 
 import * as THREE from 'three'
-import { dampAngle, hashString } from './math'
+import { clamp, dampAngle, hashString } from './math'
 import { partMaterial } from './world'
 
 const SKIN = '#f2c84b'
+const SHOE = '#2c3038'
 const SHIRTS = ['#e74c3c', '#3498db', '#2ecc71', '#9b59b6', '#f39c12', '#1abc9c', '#fd79a8', '#00b06f', '#5d6df1']
 const PANTS = ['#2c3e50', '#34495e', '#1e3a5f', '#3d2b56', '#4a3728']
+
+// The torso/head/arms hang off a "spine" group pivoting at the waist, so the
+// upper body can arch (jump) and tilt (run) while the legs stay planted.
+const SPINE_Y = 0.95
+// World height of the head's centre (its group pivots here so it can bounce).
+const HEAD_Y = 1.95
 
 export function pickAvatarColors(seed: number, shirtOverride?: string): { shirt: string; pants: string } {
   const unsignedSeed = seed >>> 0
@@ -28,6 +38,17 @@ export interface AvatarCosmetics {
   hatColor?: string | null
   face?: string | null
 }
+
+/** Named attachment points on the avatar skeleton. Cosmetics (hair, hoods,
+ *  armbands, rings, slippers/shoes…) parent to one of these via `attach()` so
+ *  they ride the correct joint — e.g. a ring on `rightHand`, an armband on
+ *  `leftWrist`, hair on `head`, a cape on `back`. */
+export type AvatarAnchor =
+  | 'head' | 'face' | 'chest' | 'back'
+  | 'leftShoulder' | 'rightShoulder'
+  | 'leftWrist' | 'rightWrist'
+  | 'leftHand' | 'rightHand'
+  | 'leftFoot' | 'rightFoot'
 
 /** known face variant ids — anything else falls back to the default smile */
 const FACE_VARIANTS = new Set(['face-happy', 'face-cool', 'face-angry'])
@@ -180,14 +201,35 @@ function avatarPlane(w: number, h: number): THREE.PlaneGeometry {
   return cachedGeo(`plane:${w.toFixed(3)}|${h.toFixed(3)}`, () => new THREE.PlaneGeometry(w, h))
 }
 
-function limb(w: number, h: number, d: number, color: string): { pivot: THREE.Group; mesh: THREE.Mesh } {
+/**
+ * A two-segment limb: an `upper` bone hanging from `pivot` (shoulder/hip) and a
+ * `lower` bone hanging from `joint` (elbow/knee), so the limb can bend midway.
+ * The caller positions `pivot`, parents an end piece (hand/foot) under `joint`,
+ * and animates pivot.rotation.x (swing) + joint.rotation.x (bend).
+ */
+function jointedLimb(
+  upperLen: number,
+  lowerLen: number,
+  upperR: number,
+  lowerR: number,
+  color: string,
+): { pivot: THREE.Group; joint: THREE.Group; upper: THREE.Mesh; lower: THREE.Mesh } {
   const pivot = new THREE.Group()
-  const geo = avatarCapsule(Math.min(w, d) / 2, h)
-  const mesh = new THREE.Mesh(geo, partMaterial(color, 'plastic'))
-  mesh.position.y = -h / 2
-  mesh.castShadow = true
-  pivot.add(mesh)
-  return { pivot, mesh }
+  const upper = new THREE.Mesh(avatarCapsule(upperR, upperLen), partMaterial(color, 'plastic'))
+  upper.position.y = -upperLen / 2
+  upper.castShadow = true
+  pivot.add(upper)
+
+  const joint = new THREE.Group()
+  joint.position.y = -upperLen
+  pivot.add(joint)
+
+  const lower = new THREE.Mesh(avatarCapsule(lowerR, lowerLen), partMaterial(color, 'plastic'))
+  lower.position.y = -lowerLen / 2
+  lower.castShadow = true
+  joint.add(lower)
+
+  return { pivot, joint, upper, lower }
 }
 
 const flashMat = new THREE.MeshBasicMaterial({ color: '#ff6b5e' })
@@ -210,14 +252,34 @@ export class Avatar {
 
   private leftArm: THREE.Group
   private rightArm: THREE.Group
+  private leftElbow: THREE.Group
+  private rightElbow: THREE.Group
   private leftLeg: THREE.Group
   private rightLeg: THREE.Group
+  private leftKnee: THREE.Group
+  private rightKnee: THREE.Group
   private body: THREE.Group
+  /** spine pivot at the waist — arches on jump, tilts on run (legs excluded) */
+  private upper: THREE.Group
+  /** head pivot — carries the face, hats and hair, and bounces on jump */
+  private headGroup: THREE.Group
   private torso: THREE.Mesh
   private head: THREE.Mesh
   private face: THREE.Mesh
-  // cosmetics: a hat group parented to the body at head height (moves exactly
-  // like the face plane), plus per-instance resources to dispose.
+
+  // --- cosmetic system -------------------------------------------------------
+  // Body meshes grouped by recolor/texture "slot" so skins & clothing can swap
+  // them, plus named sockets (`anchors`) where future items — hair, hoodies,
+  // armbands, rings, slippers… — attach so they ride the correct joint.
+  private skinMeshes: THREE.Mesh[] = []
+  private shirtMeshes: THREE.Mesh[] = []
+  private pantsMeshes: THREE.Mesh[] = []
+  private shoeMeshes: THREE.Mesh[] = []
+  /** cosmetic attachment points; each is an empty group fixed to a joint */
+  readonly anchors = {} as Record<AvatarAnchor, THREE.Group>
+
+  // cosmetics: a hat group parented to the head group (so it tracks the head's
+  // bounce + tilt exactly), plus per-instance resources to dispose.
   private hatGroup: THREE.Group | null = null
   private halo: THREE.Mesh | null = null
   private haloBaseY = 0
@@ -227,6 +289,10 @@ export class Avatar {
   private bubble: THREE.Sprite | null = null
   private bubbleUntil = 0
   private animT = Math.random() * 10
+  // head-bounce spring (pops on jump takeoff & landing)
+  private headBob = 0
+  private headBobVel = 0
+  private wasGrounded = true
 
   readonly shirtColor: string
 
@@ -239,19 +305,34 @@ export class Avatar {
     this.body = new THREE.Group()
     this.group.add(this.body)
 
-    // torso: soft ellipsoid filling roughly the old 0.85w x 0.95h x 0.5d silhouette
+    // spine: everything above the hips hangs here so it arches & tilts as one
+    // unit while the legs stay planted on the body.
+    this.upper = new THREE.Group()
+    this.upper.position.y = SPINE_Y
+    this.body.add(this.upper)
+
+    // torso: soft ellipsoid filling roughly the old 0.85w x 0.95h x 0.5d
+    // silhouette (shirt slot — shirts/sweaters/hoodies recolor or swap it)
     const torsoGeo = avatarEllipsoid(0.43, 0.52, 0.27)
     this.torso = new THREE.Mesh(torsoGeo, partMaterial(this.shirtColor, 'plastic'))
-    this.torso.position.y = 1.125
+    this.torso.position.y = 1.125 - SPINE_Y
     this.torso.castShadow = true
-    this.body.add(this.torso)
+    this.upper.add(this.torso)
+    this.shirtMeshes.push(this.torso)
 
-    // head: round crown with a tiny vertical squash to keep the old height read
+    // head group: head + face + hats/hair, pivoting at the head centre so it
+    // can bounce on jumps and follow the spine's arch/tilt as one piece
+    this.headGroup = new THREE.Group()
+    this.headGroup.position.y = HEAD_Y - SPINE_Y
+    this.upper.add(this.headGroup)
+
+    // head: round crown with a tiny vertical squash (skin slot). Group-local
+    // origin == head centre, so the head mesh sits at 0.
     const headGeo = avatarEllipsoid(0.32, 0.33, 0.32)
     this.head = new THREE.Mesh(headGeo, partMaterial(SKIN, 'plastic'))
-    this.head.position.y = 1.95
     this.head.castShadow = true
-    this.body.add(this.head)
+    this.headGroup.add(this.head)
+    this.skinMeshes.push(this.head)
 
     // face (front of head, -Z is forward... we use +Z forward for the model and rotate)
     if (!faceTex) faceTex = makeFaceTexture()
@@ -264,36 +345,76 @@ export class Avatar {
         polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
       }),
     )
-    this.face.position.set(0, 1.96, 0.342)
-    this.body.add(this.face)
+    this.face.position.set(0, 0.01, 0.342) // 0.01 above the head-group origin (head centre)
+    this.headGroup.add(this.face)
 
-    // arms (pivot at shoulder y=1.55)
-    const armW = 0.28
-    const la = limb(armW, 0.9, armW, this.shirtColor)
-    const ra = limb(armW, 0.9, armW, this.shirtColor)
+    // arms: two-segment (upper arm + forearm via an elbow), pivot at shoulder
+    // (world y=1.55). Sleeves are the shirt slot; hands are the skin slot.
+    const la = jointedLimb(0.46, 0.46, 0.14, 0.13, this.shirtColor)
+    const ra = jointedLimb(0.46, 0.46, 0.14, 0.13, this.shirtColor)
     this.leftArm = la.pivot
     this.rightArm = ra.pivot
-    this.leftArm.position.set(-(0.425 + armW / 2 + 0.02), 1.55, 0)
-    this.rightArm.position.set(0.425 + armW / 2 + 0.02, 1.55, 0)
-    this.body.add(this.leftArm, this.rightArm)
+    this.leftElbow = la.joint
+    this.rightElbow = ra.joint
+    this.leftArm.position.set(-0.585, 1.55 - SPINE_Y, 0)
+    this.rightArm.position.set(0.585, 1.55 - SPINE_Y, 0)
+    this.upper.add(this.leftArm, this.rightArm)
+    this.shirtMeshes.push(la.upper, la.lower, ra.upper, ra.lower)
 
     // hands (skin tone tips) — slightly proud of the sleeve so no face is
     // coplanar with the arm capsule (coplanar faces z-fight = flickering hands)
     for (const arm of [la, ra]) {
       const hand = new THREE.Mesh(avatarEllipsoid(0.155, 0.135, 0.155, 12, 8), partMaterial(SKIN, 'plastic'))
-      hand.position.y = -0.875
-      arm.pivot.add(hand)
+      hand.position.y = -0.46
+      hand.castShadow = true
+      arm.joint.add(hand)
+      this.skinMeshes.push(hand)
     }
 
-    // legs (pivot at hip y=0.65)
-    const legW = 0.32
-    const ll = limb(legW, 0.65, legW, pants)
-    const rl = limb(legW, 0.65, legW, pants)
+    // legs: two-segment (thigh + shin via a knee), pivot at hip (world y=0.65).
+    // Thigh + shin are the pants slot.
+    const ll = jointedLimb(0.33, 0.30, 0.16, 0.15, pants)
+    const rl = jointedLimb(0.33, 0.30, 0.16, 0.15, pants)
     this.leftLeg = ll.pivot
     this.rightLeg = rl.pivot
+    this.leftKnee = ll.joint
+    this.rightKnee = rl.joint
     this.leftLeg.position.set(-0.21, 0.65, 0)
     this.rightLeg.position.set(0.21, 0.65, 0)
     this.body.add(this.leftLeg, this.rightLeg)
+    this.pantsMeshes.push(ll.upper, ll.lower, rl.upper, rl.lower)
+
+    // feet (shoe slot) — rounded shoes at the shin ends, toes forward (+Z),
+    // soles resting at ground level
+    for (const leg of [ll, rl]) {
+      const foot = new THREE.Mesh(avatarEllipsoid(0.13, 0.085, 0.21, 12, 8), partMaterial(SHOE, 'plastic'))
+      foot.position.set(0, -0.25, 0.07)
+      foot.castShadow = true
+      leg.joint.add(foot)
+      this.shoeMeshes.push(foot)
+    }
+
+    // cosmetic sockets — empty groups fixed to each joint. Future items attach
+    // here via attach() and inherit the joint's motion. (See AvatarAnchor.)
+    const socket = (parent: THREE.Object3D, x: number, y: number, z: number) => {
+      const s = new THREE.Group()
+      s.position.set(x, y, z)
+      parent.add(s)
+      return s
+    }
+    const torsoLocalY = 1.125 - SPINE_Y
+    this.anchors.head = socket(this.headGroup, 0, 0.33, 0) // crown: hats, hair
+    this.anchors.face = socket(this.headGroup, 0, 0, 0.36) // glasses, masks
+    this.anchors.chest = socket(this.upper, 0, torsoLocalY, 0.28) // logos, badges
+    this.anchors.back = socket(this.upper, 0, torsoLocalY, -0.28) // capes, packs
+    this.anchors.leftShoulder = socket(this.leftArm, 0, -0.23, 0) // armband, sleeve
+    this.anchors.rightShoulder = socket(this.rightArm, 0, -0.23, 0)
+    this.anchors.leftWrist = socket(this.leftElbow, 0, -0.34, 0) // bracelet, band
+    this.anchors.rightWrist = socket(this.rightElbow, 0, -0.34, 0)
+    this.anchors.leftHand = socket(this.leftElbow, 0, -0.46, 0) // ring, glove, held item
+    this.anchors.rightHand = socket(this.rightElbow, 0, -0.46, 0)
+    this.anchors.leftFoot = socket(this.leftKnee, 0, -0.25, 0.07) // shoe, slipper
+    this.anchors.rightFoot = socket(this.rightKnee, 0, -0.25, 0.07)
 
     if (name) {
       this.nameSprite = textSprite(name, { bg: '', fg: '#ffffff' })
@@ -318,11 +439,44 @@ export class Avatar {
   /** repaint the shirt (torso + sleeves) — per-game stores sell recolors.
    *  Materials are shared via the cache, so swap, never tint in place. */
   setShirtColor(color: string) {
+    this.applySlot(this.shirtMeshes, color)
+  }
+
+  /** recolor the skin (head + hands) — for skin-tone / character "skins". */
+  setSkinColor(color: string) {
+    this.applySlot(this.skinMeshes, color)
+  }
+
+  /** recolor the pants (thighs + shins). */
+  setPantsColor(color: string) {
+    this.applySlot(this.pantsMeshes, color)
+  }
+
+  /** recolor the shoes (feet). Slippers/shoes can also attach at the foot sockets. */
+  setShoeColor(color: string) {
+    this.applySlot(this.shoeMeshes, color)
+  }
+
+  /** Swap every mesh in a slot to one shared cached material (never tint in place). */
+  private applySlot(meshes: THREE.Mesh[], color: string) {
     const m = partMaterial(color, 'plastic')
-    this.torso.material = m
-    for (const pivot of [this.leftArm, this.rightArm]) {
-      const sleeve = pivot.children[0]
-      if (sleeve instanceof THREE.Mesh) sleeve.material = m
+    for (const mesh of meshes) mesh.material = m
+  }
+
+  /** Parent a cosmetic object to a named socket so it tracks that joint's
+   *  motion. The caller owns the object (clear it with clearAnchor / on dispose
+   *  of the cosmetic). Pass a group whose own materials are tagged
+   *  `userData.ownedByAvatar` if you want clearAnchor to free them. */
+  attach(anchor: AvatarAnchor, obj: THREE.Object3D) {
+    this.anchors[anchor].add(obj)
+  }
+
+  /** Detach everything at a socket (frees only avatar-owned inline materials). */
+  clearAnchor(anchor: AvatarAnchor) {
+    const g = this.anchors[anchor]
+    for (const child of [...g.children]) {
+      g.remove(child)
+      if ((child as THREE.Group).isGroup) disposeGroup(child as THREE.Group)
     }
   }
 
@@ -348,7 +502,7 @@ export class Avatar {
   private setHat(hatId: string | null, color: string | null) {
     // tear down any existing hat first (slot is exclusive)
     if (this.hatGroup) {
-      this.body.remove(this.hatGroup)
+      this.headGroup.remove(this.hatGroup)
       disposeGroup(this.hatGroup)
       this.hatGroup = null
       this.halo = null
@@ -412,21 +566,26 @@ export class Avatar {
       default:
         return // unknown hat id — leave bare-headed
     }
-    this.body.add(g) // parented to body at head height → tracks the head like the face plane
+    // Hat geometry above is authored in world-space heights (TOP≈2.28). The
+    // head group sits at world HEAD_Y, so offset by -HEAD_Y to re-base those
+    // numbers into it — the hat then tracks the head's bounce/tilt exactly.
+    g.position.y = -HEAD_Y
+    this.headGroup.add(g)
     this.hatGroup = g
   }
 
-  /** put a simple weapon prop in the right hand (combat games) */
+  /** put a simple weapon prop in the right hand (combat games). Parented to the
+   *  forearm (elbow joint) so it stays in the hand when the elbow bends. */
   holdWeapon(accent = '#7df9ff') {
     if (this.weaponProp) return
     const grip = new THREE.Group()
     const body = new THREE.Mesh(avatarBox(0.17, 0.22, 0.6), partMaterial('#2e3540', 'metal'))
-    body.position.set(0, -0.78, 0.28)
+    body.position.set(0, -0.32, 0.28)
     body.castShadow = true
     const barrel = new THREE.Mesh(avatarBox(0.09, 0.09, 0.36), partMaterial(accent, 'neon'))
-    barrel.position.set(0, -0.75, 0.72)
+    barrel.position.set(0, -0.29, 0.72)
     grip.add(body, barrel)
-    this.rightArm.add(grip)
+    this.rightElbow.add(grip)
     this.weaponProp = grip
   }
 
@@ -522,37 +681,78 @@ export class Avatar {
     }
 
     const walk = Math.min(1, speed / 6)
+    // run ramps in above a walk, so the shoulder tilt + forward lean only show
+    // once the blob is actually sprinting
+    const run = clamp((speed - 3) / 4, 0, 1)
     this.animT += dt * (4.5 + speed * 1.1)
+    const s = Math.sin(this.animT)
+
+    // head bounce: a light spring that gets a downward kick on takeoff and a
+    // harder one on landing, so the head lags then springs back into place
+    if (grounded !== this.wasGrounded) {
+      this.headBobVel += grounded ? -1.0 : -0.6
+      this.wasGrounded = grounded
+    }
+    this.headBobVel += (-90 * this.headBob - 12 * this.headBobVel) * dt
+    this.headBob = clamp(this.headBob + this.headBobVel * dt, -0.12, 0.12)
+    this.headGroup.position.y = HEAD_Y - SPINE_Y + this.headBob
 
     if (!grounded) {
-      // air pose: arms up & out, legs tucked
-      const t = Math.min(1, Math.abs(dt) * 60)
-      this.leftArm.rotation.x = lerpA(this.leftArm.rotation.x, -2.5, 0.15 * t * 60 * dt)
-      this.rightArm.rotation.x = lerpA(this.rightArm.rotation.x, -2.5, 0.15 * t * 60 * dt)
-      this.leftLeg.rotation.x = lerpA(this.leftLeg.rotation.x, 0.45, 0.2)
-      this.rightLeg.rotation.x = lerpA(this.rightLeg.rotation.x, -0.3, 0.2)
+      // air pose: a big upward stretch — both arms reach straight overhead
+      // (elbows extended), legs hang nearly straight with a slight bend, and the
+      // back arches into the reach
+      this.leftArm.rotation.x = lerpA(this.leftArm.rotation.x, -2.9, 0.15)
+      this.rightArm.rotation.x = lerpA(this.rightArm.rotation.x, -2.9, 0.15)
+      this.leftElbow.rotation.x = lerpA(this.leftElbow.rotation.x, 0, 0.2)
+      this.rightElbow.rotation.x = lerpA(this.rightElbow.rotation.x, 0, 0.2)
+      this.leftLeg.rotation.x = lerpA(this.leftLeg.rotation.x, 0.08, 0.2)
+      this.rightLeg.rotation.x = lerpA(this.rightLeg.rotation.x, -0.08, 0.2)
+      this.leftKnee.rotation.x = lerpA(this.leftKnee.rotation.x, 0.3, 0.2)
+      this.rightKnee.rotation.x = lerpA(this.rightKnee.rotation.x, 0.3, 0.2)
+      this.upper.rotation.x = lerpA(this.upper.rotation.x, -0.22, 0.18) // arch into the reach
+      this.upper.rotation.z = lerpA(this.upper.rotation.z, 0, 0.2)
       this.body.position.y = 0
     } else if (walk > 0.05) {
-      const s = Math.sin(this.animT)
       const amp = 0.85 * walk
+      // shoulders/hips swing (arms opposite legs)
       this.leftArm.rotation.x = s * amp
       this.rightArm.rotation.x = -s * amp
       this.leftLeg.rotation.x = -s * amp
       this.rightLeg.rotation.x = s * amp
+      // knees flex on the lifting half of each stride (opposite phase per leg)
+      const kneeAmp = 1.15 * walk
+      this.leftKnee.rotation.x = Math.max(0, s) * kneeAmp + 0.06 * walk
+      this.rightKnee.rotation.x = Math.max(0, -s) * kneeAmp + 0.06 * walk
+      // elbows keep a natural forward bend (negative = hand swings up/forward,
+      // the opposite way a knee bends) and flex more on each arm's forward swing
+      const elbowBase = 0.22 + 0.3 * walk
+      this.leftElbow.rotation.x = -(elbowBase + Math.max(0, -s) * 0.5 * walk)
+      this.rightElbow.rotation.x = -(elbowBase + Math.max(0, s) * 0.5 * walk)
+      // shoulders rock side-to-side and lean in as the run builds
+      this.upper.rotation.z = s * 0.13 * run
+      this.upper.rotation.x = lerpA(this.upper.rotation.x, 0.14 * run, 0.15)
       this.body.position.y = Math.abs(Math.cos(this.animT)) * 0.06 * walk
     } else {
-      // idle: subtle breathing sway
+      // idle: subtle breathing sway; joints ease back to a relaxed rest
       const b = Math.sin(now * 1.7)
       this.leftArm.rotation.x = lerpA(this.leftArm.rotation.x, b * 0.04, 0.12)
       this.rightArm.rotation.x = lerpA(this.rightArm.rotation.x, -b * 0.04, 0.12)
       this.leftLeg.rotation.x = lerpA(this.leftLeg.rotation.x, 0, 0.18)
       this.rightLeg.rotation.x = lerpA(this.rightLeg.rotation.x, 0, 0.18)
+      this.leftKnee.rotation.x = lerpA(this.leftKnee.rotation.x, 0.05, 0.18)
+      this.rightKnee.rotation.x = lerpA(this.rightKnee.rotation.x, 0.05, 0.18)
+      this.leftElbow.rotation.x = lerpA(this.leftElbow.rotation.x, -0.16 - b * 0.02, 0.12)
+      this.rightElbow.rotation.x = lerpA(this.rightElbow.rotation.x, -0.16 + b * 0.02, 0.12)
+      this.upper.rotation.x = lerpA(this.upper.rotation.x, 0, 0.1)
+      this.upper.rotation.z = lerpA(this.upper.rotation.z, 0, 0.1)
       this.body.position.y = b * 0.012
     }
 
-    // armed + aiming: the weapon arm levels at the target regardless of gait
+    // armed + aiming: the weapon arm levels at the target and the elbow
+    // straightens so the barrel points where it should, regardless of gait
     if (this.aiming && this.weaponProp) {
       this.rightArm.rotation.x = lerpA(this.rightArm.rotation.x, -1.45, 0.35)
+      this.rightElbow.rotation.x = lerpA(this.rightElbow.rotation.x, 0, 0.35)
     }
 
     if (this.bubble && performance.now() > this.bubbleUntil) {
@@ -568,7 +768,7 @@ export class Avatar {
       this.flashed = []
     }
     if (this.hatGroup) {
-      this.body.remove(this.hatGroup)
+      this.headGroup.remove(this.hatGroup)
       disposeGroup(this.hatGroup)
       this.hatGroup = null
       this.halo = null
@@ -583,7 +783,7 @@ export class Avatar {
     if (this.nameSprite) { disposeSprite(this.nameSprite); this.nameSprite = null }
     if (this.bubble) { disposeSprite(this.bubble); this.bubble = null }
     if (this.weaponProp) {
-      this.rightArm.remove(this.weaponProp)
+      this.rightElbow.remove(this.weaponProp)
       disposeGroup(this.weaponProp)
       this.weaponProp = null
     }
