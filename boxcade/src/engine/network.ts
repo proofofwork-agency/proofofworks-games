@@ -3,6 +3,8 @@
 // past for silky movement. If no server is reachable the game silently
 // plays solo — multiplayer is an upgrade, never a requirement.
 
+import { wsUrl } from '../config'
+
 export interface RemoteSnap {
   at: number
   x: number; y: number; z: number
@@ -65,7 +67,7 @@ export class Net {
    * 'sky-obby#ABCD' joins/creates that room code.
    */
   connect(gameId: string, name: string, maxPlayers = 64): Promise<boolean> {
-    const url = `ws://${location.hostname}:8081`
+    const url = wsUrl()
     return new Promise((resolve) => {
       let settled = false
       const fail = () => {

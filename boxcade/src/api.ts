@@ -3,8 +3,9 @@
 // when the server is unreachable the portal simply hides the Community shelf.
 
 import type { GameDoc } from './sdk'
+import { apiBaseUrl } from './config'
 
-const base = () => `${location.protocol}//${location.hostname}:8081`
+const base = () => apiBaseUrl()
 
 export interface CommunityGame {
   id: string

@@ -10,6 +10,7 @@ import {
 } from './drafts'
 import { TEMPLATES } from './templates'
 import { encodeGameDoc, SHARE_LINK_LIMIT, slugifyName, type GameDoc } from './sdk'
+import { wsUrl } from './config'
 import {
   listCommunity, publishGame, republishGame, publishRecordFor, rememberPublish,
   toggleLike, reportGame, getEarnings, claimEarnings, topScores, type CommunityGame,
@@ -125,7 +126,7 @@ export function renderPortal(app: HTMLElement) {
   // server reachability badge (pure cosmetics — games work offline too)
   const badge = document.getElementById('netState')!
   try {
-    const ws = new WebSocket(`ws://${location.hostname}:8081`)
+    const ws = new WebSocket(wsUrl())
     const timer = setTimeout(() => { try { ws.close() } catch { /* noop */ } }, 1500)
     ws.onopen = () => {
       badge.textContent = '🟢 multiplayer server online'
