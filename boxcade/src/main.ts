@@ -1,4 +1,4 @@
-// Boxcade shell: the tiny hash router. Screens live elsewhere — the portal
+// Blobcade shell: the tiny hash router. Screens live elsewhere — the portal
 // (home + shop + My Games) in portal.ts, the editor in editor.ts, games run
 // through runtime/runtime.ts. Routes:
 //   #/                   portal
@@ -19,18 +19,12 @@ import { renderPortal, playerName } from './portal'
 import { loadDraft, saveDraft } from './drafts'
 import { deviceKey, getPublishedGame, countPlay, submitScore, creditStorePurchase, type PublishedGame } from './api'
 import { economy } from './engine/economy'
+import { migrateBlobcadeLocalStorage } from './storage-migration'
 import type { GameDef, GameDoc } from './sdk'
 
-// one-time migration: carry wallets/maps from the pre-rename localStorage keys
-for (const key of Object.keys(localStorage)) {
-  if (key.startsWith('freeblox.')) {
-    const renamed = key.replace('freeblox.', 'boxcade.').replace('.blux', '.bolts')
-    if (localStorage.getItem(renamed) === null) {
-      localStorage.setItem(renamed, localStorage.getItem(key)!)
-    }
-    localStorage.removeItem(key)
-  }
-}
+// one-time migration: carry wallets/maps through both historical renames
+// (freeblox/blux -> boxcade/bolts -> blobcade/blobcash).
+migrateBlobcadeLocalStorage()
 
 const app = document.getElementById('app')!
 let session: GameSession | null = null
@@ -44,7 +38,7 @@ function customMapDef(): GameDef {
     meta: {
       id: 'custom-map',
       name: 'My Custom Map',
-      blurb: 'A map from the Boxcade editor.',
+      blurb: 'A map from the Blobcade editor.',
       emoji: '🗺',
       gradient: 'linear-gradient(135deg, #06d6a0, #2f81f7)',
       genre: 'Custom',
@@ -84,7 +78,7 @@ function renderEmbedHost(game: PublishedGame) {
 
   const back = document.createElement('button')
   back.className = 'btn small ghost'
-  back.textContent = '⬅ Boxcade'
+  back.textContent = '⬅ Blobcade'
   back.style.cssText = 'position:absolute;top:14px;left:14px;z-index:2;box-shadow:0 8px 24px rgba(0,0,0,.25);'
   back.onclick = () => { location.hash = '' }
 
@@ -96,15 +90,19 @@ function renderEmbedHost(game: PublishedGame) {
     const data = event.data as { t?: string; v?: number; n?: number; reason?: string; seconds?: number }
     if (!data || data.v !== 1 || typeof data.t !== 'string') return
     if (event.origin !== 'null') {
-      console.warn(`[boxcade] ignored embed bridge message from ${event.origin}; expected sandboxed opaque origin for ${embedUrlOrigin}`)
+      console.warn(`[blobcade] ignored embed bridge message from ${event.origin}; expected sandboxed opaque origin for ${embedUrlOrigin}`)
       return
     }
-    if (data.t === 'boxcade:ready') {
+    const legacyBridge = data.t.startsWith('boxcade:')
+    const bridgeType = legacyBridge
+      ? data.t.replace(/^boxcade:/, 'blobcade:').replace('awardBolts', 'awardBlobcash')
+      : data.t
+    if (bridgeType === 'blobcade:ready') {
       // sandbox="allow-scripts" without allow-same-origin gives the child an
       // opaque origin, so the hello must use "*". The trust boundary is the
       // iframe window identity above, not the untrusted child origin.
       frame.contentWindow?.postMessage({
-        t: 'boxcade:hello',
+        t: legacyBridge ? 'boxcade:hello' : 'blobcade:hello',
         v: 1,
         name: playerName(),
         device: deviceKey(),
@@ -112,7 +110,7 @@ function renderEmbedHost(game: PublishedGame) {
       }, '*')
       return
     }
-    if (data.t === 'boxcade:awardBolts') {
+    if (bridgeType === 'blobcade:awardBlobcash') {
       const now = Date.now()
       if (now - bucketAt >= 60_000) {
         bucketAt = now
@@ -120,14 +118,14 @@ function renderEmbedHost(game: PublishedGame) {
       }
       const n = Math.max(1, Math.min(10, Math.floor(Number(data.n) || 0)))
       if (awarded + n > 30) {
-        console.warn('[boxcade] embed awardBolts rate cap exceeded')
+        console.warn('[blobcade] embed awardBlobcash rate cap exceeded')
         return
       }
       awarded += n
       economy.earn(n, typeof data.reason === 'string' ? data.reason : 'external game')
       return
     }
-    if (data.t === 'boxcade:submitScore') {
+    if (bridgeType === 'blobcade:submitScore') {
       const seconds = Number(data.seconds)
       if (Number.isFinite(seconds) && seconds > 0 && seconds <= 86400) {
         void submitScore(game.id, Math.round(seconds * 10) / 10).catch(() => {})
@@ -151,7 +149,7 @@ function renderDocError(err: unknown) {
       <div class="overlay-card" style="margin:80px auto;max-width:520px">
         <h2>😵 Couldn't load that game</h2>
         <div id="docErrs"></div>
-        <button class="btn" id="docErrBack">⬅ Back to Boxcade</button>
+        <button class="btn" id="docErrBack">⬅ Back to Blobcade</button>
       </div>
     </div></div>`
   const errBox = document.getElementById('docErrs')!
@@ -169,7 +167,7 @@ function hasScript(doc: unknown): doc is GameDoc & { script: string } {
 
 async function ensureScriptAllowed(doc: GameDoc, source: string): Promise<boolean> {
   if (!hasScript(doc)) return false
-  const key = `boxcade.script.ok.${hashGameDoc(doc as object)}`
+  const key = `blobcade.script.ok.${hashGameDoc(doc as object)}`
   if (localStorage.getItem(key) === '1') return true
   const ok = window.confirm(`"${doc.meta.name}" contains a creator script from ${source}.\n\nScripts run in a sandbox without DOM, storage, or network access. Run it?`)
   if (ok) localStorage.setItem(key, '1')
@@ -211,7 +209,7 @@ function handleGoTo(target: string, context: GoToContext = {}) {
   // code-game escape hatch: hop to a built-in game by id (docs can't emit this)
   const play = target.match(/^play:([\w-]+)$/)
   if (play) { location.hash = `#/play/${play[1]}`; return }
-  console.warn('[boxcade] goToGame: unrecognized target', target)
+  console.warn('[blobcade] goToGame: unrecognized target', target)
 }
 
 /**
@@ -225,7 +223,7 @@ async function relaunchAtLevel(doc: GameDoc, level: number, roomKey: string, opt
   // a target that doesn't exist must NOT relaunch the root — a root rule
   // retargeting itself would relaunch forever.
   if (level >= 2 && !doc.levels?.[level - 2]) {
-    console.warn(`[boxcade] goTo level:${level} — this game has no such level`)
+    console.warn(`[blobcade] goTo level:${level} — this game has no such level`)
     return
   }
   booting = true
@@ -236,7 +234,7 @@ async function relaunchAtLevel(doc: GameDoc, level: number, roomKey: string, opt
       roomKey: `${roomKey}-l${level}`,
     })
   } catch (err) {
-    console.error('[boxcade] failed to enter level', err)
+    console.error('[blobcade] failed to enter level', err)
     renderDocError(err)
   } finally {
     booting = false
@@ -278,19 +276,18 @@ async function route() {
   if (shared) {
     booting = true
     try {
-      const doc = await decodeGameDoc(shared[1])
-      const gameDoc = doc as GameDoc
+      const gameDoc = await decodeGameDoc(shared[1])
       const allowScripts = await ensureScriptAllowed(gameDoc, 'a shared link')
       if (hasScript(gameDoc) && !allowScripts) throw new Error('script permission was not granted')
       const def = buildGameFromDoc(gameDoc, { allowScripts })
       // players holding the same link land in the same room family
-      const roomKey = `d-${hashGameDoc(doc as object)}${roomSuffix()}`
+      const roomKey = `d-${hashGameDoc(gameDoc)}${roomSuffix()}`
       const runOpts: RunGameOptions = { roomKey }
       runOpts.onGoToGame = (target) =>
         handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(gameDoc, n, roomKey, runOpts, allowScripts) })
       session = await runGame(def, app, playerName(), runOpts)
     } catch (err) {
-      console.error('[boxcade] failed to load shared game', err)
+      console.error('[blobcade] failed to load shared game', err)
       renderDocError(err)
     } finally {
       booting = false
@@ -310,7 +307,7 @@ async function route() {
         renderEmbedHost(g)
       }
     } catch (err) {
-      console.error('[boxcade] failed to load external game', err)
+      console.error('[blobcade] failed to load external game', err)
       renderDocError(err)
     } finally {
       booting = false
@@ -345,7 +342,7 @@ async function route() {
         handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(doc, n, roomKey, runOpts) })
       session = await runGame(def, app, playerName(), runOpts)
     } catch (err) {
-      console.error('[boxcade] failed to load published game', err)
+      console.error('[blobcade] failed to load published game', err)
       renderDocError(err)
     } finally {
       booting = false
@@ -380,7 +377,7 @@ async function route() {
         handleGoTo(target, { relaunchLevel: (n) => relaunchAtLevel(doc, n, roomKey, runOpts, allowScripts) })
       session = await runGame(buildGameFromDoc(doc, { allowScripts }), app, playerName(), runOpts)
     } catch (err) {
-      console.error('[boxcade] failed to start draft', err)
+      console.error('[blobcade] failed to start draft', err)
       renderDocError(err)
     } finally {
       booting = false
@@ -400,13 +397,13 @@ async function route() {
           // built-in voxel games (Voxel Island) save edits as a NEW draft
           onSaveWorld(worldJson) {
             const doc: GameDoc = {
-              boxcade: 'gamedoc',
+              blobcade: 'gamedoc',
               v: 1,
               meta: {
                 name: `${def.meta.name} — my world`.slice(0, 48),
                 emoji: '🏝',
                 genre: 'Sandbox',
-                blurb: 'A world built in Boxcade build mode.',
+                blurb: 'A world built in Blobcade build mode.',
               },
               camera: 'fp',
               voxel: { data: worldJson },
@@ -416,7 +413,7 @@ async function route() {
           },
         })
       } catch (err) {
-        console.error('[boxcade] failed to start game', err)
+        console.error('[blobcade] failed to start game', err)
         location.hash = ''
       } finally {
         booting = false

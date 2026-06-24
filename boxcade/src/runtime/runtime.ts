@@ -1,4 +1,4 @@
-// The Boxcade runtime: takes a GameDef from the SDK and runs it. One call:
+// The Blobcade runtime: takes a GameDef from the SDK and runs it. One call:
 //   const session = await runGame(def, mountEl, playerName)
 // runGame is the COMPOSITION ROOT: it builds the engine objects, wires the
 // internal runtime systems (systems/ — HUD shell, chat, pause, build mode,
@@ -27,7 +27,6 @@ import { v3, vclone, type Vec3 } from '../engine/math'
 import { EventBus } from '../engine/events'
 import { attachTouchControls } from '../engine/touch'
 import { createGameStore, type GameStoreEquipped } from './store'
-import { escapeHtml } from './dom'
 import { createHudSystem } from './systems/hud'
 import { createChatSystem } from './systems/chat'
 import { createPauseSystem } from './systems/pause'
@@ -154,7 +153,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         at, size, color: '#ffc94d', material: 'gold',
         onTouch: (ctx) => {
           ctx.celebrate('🏆 YOU WIN!')
-          ctx.earnBolts(25, 'victory')
+          ctx.earnBlobcash(25, 'victory')
           onWin?.(ctx)
         },
       })
@@ -336,7 +335,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         onChange: (eq) => {
           storeEq = eq
           selfAvatar.setShirtColor(eq.shirt?.color ?? selfShirt ?? selfAvatar.shirtColor)
-          hud.set('bolts', `B$ ${economy.balance}`)
+          hud.set('blobcash', `B$ ${economy.balance}`)
         },
         onBuy: (item) => opts.onStoreBuy?.(item),
       })
@@ -388,11 +387,11 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     combat.onKill = (info) => {
       const kn = info.killer ? info.killer.name : '☠'
       const icon = info.headshot ? '🎯' : '⚔'
-      ch.addKillLine(`<b>${escapeHtml(kn)}</b> ${icon} ${escapeHtml(info.victim.name)}`)
+      ch.addKillLine(kn, icon, info.victim.name)
       if (info.killer === combat!.self) {
-        const bolts = info.headshot ? 15 : 10
-        economy.earn(bolts, 'kill')
-        hud.set('bolts', `B$ ${economy.balance}`)
+        const blobcash = info.headshot ? 15 : 10
+        economy.earn(blobcash, 'kill')
+        hud.set('blobcash', `B$ ${economy.balance}`)
       }
       if (info.victim === combat!.self) {
         ch.showRespawnOverlay()
@@ -500,11 +499,11 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
         count: 10, colors: ['#ffc94d', '#fff3c4'], speed: 3, life: 0.5, gravity: -4, size: 0.3,
       })
     },
-    get bolts() { return economy.balance },
-    earnBolts(n, reason) {
+    get blobcash() { return economy.balance },
+    earnBlobcash(n, reason) {
       economy.earn(n, reason)
-      hud.set('bolts', `B$ ${economy.balance}`)
-      if (n >= 50) hud.toast(`B$ +${n} Bolts${reason ? ` — ${reason}` : ''}`)
+      hud.set('blobcash', `B$ ${economy.balance}`)
+      if (n >= 50) hud.toast(`B$ +${n} Blobcash${reason ? ` — ${reason}` : ''}`)
       // win pads and `win` rule actions both award with this reason — the
       // shell hooks it for leaderboards (best win time)
       if (reason === 'victory' && services.leaderboard) opts.onVictory?.((performance.now() - started) / 1000)
@@ -613,7 +612,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   for (const { at, weaponId } of pendingWeaponSpawns) {
     const wd = combat?.self.weapons.find((w) => w.id === weaponId) ?? WEAPONS[weaponId]
     if (!wd) {
-      console.warn(`[boxcade] weaponSpawn: unknown weapon '${weaponId}'`)
+      console.warn(`[blobcade] weaponSpawn: unknown weapon '${weaponId}'`)
       continue
     }
     const tint = wd.beamColor ?? wd.projectile?.color ?? '#cfd8e3'
@@ -851,7 +850,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       }
     }
     net.onPvpKill = (e) => {
-      ch.addKillLine(`<b>${escapeHtml(e.attackerName)}</b> ⚔ ${escapeHtml(e.victimName)}`)
+      ch.addKillLine(e.attackerName, '⚔', e.victimName)
       if (e.victimId === net.selfId) {
         cb.applyServerKill(e.attackerName, e.weapon)
       } else {
@@ -865,7 +864,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       }
       if (e.attackerId === net.selfId) {
         economy.earn(10, 'pvp kill')
-        hud.set('bolts', `B$ ${economy.balance}`)
+        hud.set('blobcash', `B$ ${economy.balance}`)
       }
     }
     net.onPvpRespawn = (victimId) => {
@@ -877,6 +876,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   // (local or remote) is also journaled so the HOST can replay the session's
   // edits to late joiners.
   const voxelEdits: Array<[number, number, number, number]> = []
+  const voxelReplayTimers: ReturnType<typeof setTimeout>[] = []
   const trackVoxelEdit = (x: number, y: number, z: number, t: number) => {
     if (voxelEdits.length < 20000) voxelEdits.push([x, y, z, t])
   }
@@ -901,7 +901,12 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     if (!voxels || !net.isHost || voxelEdits.length === 0) return
     const batches: Array<Array<[number, number, number, number]>> = []
     for (let i = 0; i < voxelEdits.length; i += 100) batches.push(voxelEdits.slice(i, i + 100))
-    batches.forEach((batch, i) => setTimeout(() => net.sendEvent('voxel:batch', batch), 150 * i))
+    batches.forEach((batch, i) => {
+      const id = setTimeout(() => {
+        if (!disposed) net.sendEvent('voxel:batch', batch)
+      }, 150 * i)
+      voxelReplayTimers.push(id)
+    })
   }
 
   const online = await net.connect(opts.roomKey ?? def.meta.id, playerName, def.maxPlayers)
@@ -918,7 +923,9 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     netChip.onclick = () => {
       const base = location.hash.replace(/\?room=[A-Za-z0-9]+/, '')
       const invite = `${location.origin}${location.pathname}${base}?room=${net.roomCode}`
-      void navigator.clipboard.writeText(invite).then(() => hud.toast('🔗 Invite link copied — friends land in this room'))
+      void navigator.clipboard.writeText(invite)
+        .then(() => hud.toast('🔗 Invite link copied — friends land in this room'))
+        .catch(() => hud.toast('Clipboard blocked — copy the room code from the HUD.'))
     }
   } else {
     hudSys.netChip.textContent = online ? '🟢 Online' : '⚪ Offline (solo)'
@@ -1034,7 +1041,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   const systems = def.systems ?? []
   for (const s of systems) s.init?.(ctx)
   hud.set('players', `👥 ${ctx.playersOnline}`)
-  hud.set('bolts', `B$ ${economy.balance}`)
+  hud.set('blobcash', `B$ ${economy.balance}`)
 
   let trailT = 0
   let last = performance.now()
@@ -1342,12 +1349,19 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       disposed = true
       cancelAnimationFrame(raf)
       document.removeEventListener('keydown', globalKeys)
+      document.removeEventListener('pointerdown', unlockAudio)
+      document.removeEventListener('keydown', unlockAudio)
+      for (const id of voxelReplayTimers) clearTimeout(id)
+      voxelReplayTimers.length = 0
       for (const s of systems) s.dispose?.()
       events.clear()
       gameStore?.dispose()
       combat?.dispose()
       for (const id of [...remoteAvatars.keys()]) removeRemoteAvatar(id)
       viewmodel?.dispose()
+      fx.dispose()
+      parts.dispose()
+      voxels?.dispose()
       touch?.dispose()
       input.exitPointerLock()
       input.dispose()
@@ -1373,13 +1387,40 @@ function makeRemoteImpostor(name: string): THREE.Sprite {
   g.beginPath()
   g.ellipse(80, 204, 38, 10, 0, 0, Math.PI * 2)
   g.fill()
+  g.lineCap = 'round'
+  g.lineJoin = 'round'
+  // soft capsule limbs behind the torso
+  g.strokeStyle = '#2f81f7'
+  g.lineWidth = 18
+  g.beginPath()
+  g.moveTo(53, 92); g.lineTo(42, 144)
+  g.moveTo(107, 92); g.lineTo(118, 144)
+  g.stroke()
+  g.strokeStyle = '#253044'
+  g.lineWidth = 20
+  g.beginPath()
+  g.moveTo(66, 144); g.lineTo(58, 194)
+  g.moveTo(94, 144); g.lineTo(102, 194)
+  g.stroke()
   g.fillStyle = '#f2c84b'
-  g.fillRect(56, 28, 48, 48)
+  g.beginPath()
+  g.ellipse(80, 54, 26, 29, 0, 0, Math.PI * 2)
+  g.fill()
   g.fillStyle = '#2f81f7'
-  g.fillRect(48, 82, 64, 70)
-  g.fillStyle = '#253044'
-  g.fillRect(52, 152, 22, 42)
-  g.fillRect(86, 152, 22, 42)
+  g.beginPath()
+  g.ellipse(80, 112, 35, 47, 0, 0, Math.PI * 2)
+  g.fill()
+  // tiny face read: dark eyes and smile, still cheap at sprite distance
+  g.fillStyle = '#1a1a1a'
+  g.beginPath()
+  g.ellipse(70, 51, 4, 6, 0, 0, Math.PI * 2)
+  g.ellipse(90, 51, 4, 6, 0, 0, Math.PI * 2)
+  g.fill()
+  g.strokeStyle = '#1a1a1a'
+  g.lineWidth = 3
+  g.beginPath()
+  g.arc(80, 61, 10, Math.PI * 0.15, Math.PI * 0.85)
+  g.stroke()
   g.fillStyle = '#ffffff'
   g.font = '700 18px system-ui, sans-serif'
   g.textAlign = 'center'

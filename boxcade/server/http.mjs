@@ -1,4 +1,4 @@
-// Boxcade publish API — a plain node:http handler (no framework) that shares
+// Blobcade publish API — a plain node:http handler (no framework) that shares
 // the websocket server's port. Local-first: anonymous creators, edit rights
 // via a bearer-style edit token, per-IP rate limits, light server-side doc
 // checks (the client fully validates docs again before running them).
@@ -112,13 +112,24 @@ function checkDoc(text) {
   } catch {
     return 'doc is not valid JSON'
   }
-  if (doc?.boxcade !== 'gamedoc') return 'not a Boxcade game document'
+  if (doc?.blobcade !== 'gamedoc' && doc?.boxcade !== 'gamedoc') return 'not a Blobcade game document'
+  if (doc.blobcade !== 'gamedoc') {
+    doc.blobcade = 'gamedoc'
+    delete doc.boxcade
+  }
   if (!Number.isInteger(doc.v) || doc.v < 1 || doc.v > 8) return 'bad doc version'
   if (typeof doc.meta?.name !== 'string' || !doc.meta.name.trim()) return 'game needs a name'
   if (typeof doc.script === 'string' && doc.script.trim()) return 'scripted publishing is not enabled yet'
   if (Array.isArray(doc.parts) && doc.parts.length > 2000) return 'too many parts'
   if (Array.isArray(doc.rules) && doc.rules.length > 200) return 'too many rules'
   return null
+}
+
+function normalizeDocMarker(doc) {
+  if (doc && typeof doc === 'object' && doc.blobcade !== 'gamedoc' && doc.boxcade === 'gamedoc') {
+    doc.blobcade = 'gamedoc'
+    delete doc.boxcade
+  }
 }
 
 function send(res, status, body) {
@@ -230,7 +241,7 @@ export async function handleApi(req, res) {
         if (!embedUrl) return send(res, 400, { error: 'embed url must be https: or http://localhost' }), true
         const name = cleanText(embed.name, 48) || 'External game'
         const doc = {
-          boxcade: 'embed',
+          blobcade: 'embed',
           v: 1,
           meta: {
             name,
@@ -244,6 +255,7 @@ export async function handleApi(req, res) {
         return true
       }
       stripInvalidThumb(body.doc)
+      normalizeDocMarker(body.doc)
       const docText = JSON.stringify(body.doc ?? null)
       const err = checkDoc(docText)
       if (err) return send(res, 400, { error: err }), true
@@ -265,6 +277,7 @@ export async function handleApi(req, res) {
       }
       const body = await readBody(req)
       stripInvalidThumb(body.doc)
+      normalizeDocMarker(body.doc)
       const docText = JSON.stringify(body.doc ?? null)
       const err = checkDoc(docText)
       if (err) return send(res, 400, { error: err }), true

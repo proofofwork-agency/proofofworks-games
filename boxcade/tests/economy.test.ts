@@ -32,18 +32,18 @@ beforeEach(() => {
 })
 
 describe('economy starting state', () => {
-  it('starts with a zero Bolt balance', () => {
+  it('starts with a zero Blobcash balance', () => {
     expect(economy.balance).toBe(0)
   })
 
-  it('persists everything under boxcade.* keys', () => {
+  it('persists everything under blobcade.* keys', () => {
     economy.earn(50)
-    economy.buy('shirt-royal') // not enough yet -> no write, but earn wrote bolts
+    economy.buy('shirt-royal') // not enough yet -> no write, but earn wrote blobcash
     economy.equip('shirt-crimson', 'shirt') // free item, owned by default
     economy.claimDaily()
     const keys = [...Array(shim.length)].map((_, i) => shim.key(i)!)
     expect(keys.length).toBeGreaterThan(0)
-    for (const k of keys) expect(k).toMatch(/^boxcade\./)
+    for (const k of keys) expect(k).toMatch(/^blobcade\./)
   })
 })
 
@@ -152,14 +152,14 @@ describe('claimDaily', () => {
 
   it('stores the claim date as an ISO yyyy-mm-dd string', () => {
     economy.claimDaily()
-    const stored = shim.getItem('boxcade.dailyBonus')
+    const stored = shim.getItem('blobcade.dailyBonus')
     expect(stored).toBe(new Date().toISOString().slice(0, 10))
   })
 
   it('grants again once the stored day is in the past', () => {
     expect(economy.claimDaily()).toBe(100)
     // rewind the stored claim to yesterday
-    shim.setItem('boxcade.dailyBonus', '2000-01-01')
+    shim.setItem('blobcade.dailyBonus', '2000-01-01')
     expect(economy.claimDaily()).toBe(100)
     expect(economy.balance).toBe(200)
   })

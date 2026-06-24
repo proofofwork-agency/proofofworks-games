@@ -1,5 +1,5 @@
 // ============================================================================
-//  Text maps — draw a Boxcade level in a plain text file.
+//  Text maps — draw a Blobcade level in a plain text file.
 //
 //  Each character is one tile (default 2x2 meters). Rows are north→south,
 //  the map is centered on the origin. Stack floors with `---` separators.
@@ -154,10 +154,10 @@ const TILE_HANDLERS = new Map<string, TileHandler>()
  */
 export function registerTile(ch: string, handler: TileHandler) {
   if (ch.length !== 1 || ch === '.' || ch === ' ' || ch === '_') {
-    console.warn(`[boxcade] registerTile: '${ch}' must be a single non-empty character`)
+    console.warn(`[blobcade] registerTile: '${ch}' must be a single non-empty character`)
     return
   }
-  if (TILE_HANDLERS.has(ch)) console.warn(`[boxcade] registerTile: overwriting '${ch}'`)
+  if (TILE_HANDLERS.has(ch)) console.warn(`[blobcade] registerTile: overwriting '${ch}'`)
   TILE_HANDLERS.set(ch, handler)
 }
 
@@ -285,7 +285,7 @@ export function buildTextMap(w: WorldBuilder, source: string | ParsedTextMap): T
         if (ch === '.' || ch === ' ' || ch === '_') continue
         const handler = TILE_HANDLERS.get(ch)
         if (!handler) {
-          console.warn(`[boxcade] text map: unknown tile '${ch}' at row ${r}, col ${c} (layer ${li})`)
+          console.warn(`[blobcade] text map: unknown tile '${ch}' at row ${r}, col ${c} (layer ${li})`)
           continue
         }
         const x = originX + (c + 0.5) * cell

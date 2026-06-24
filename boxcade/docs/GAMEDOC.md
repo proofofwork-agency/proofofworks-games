@@ -1,6 +1,6 @@
 # GameDoc format
 
-The normative spec for a **GameDoc**: one Boxcade game expressed as a single
+The normative spec for a **GameDoc**: one Blobcade game expressed as a single
 JSON document. This is the platform's interchange format — the editor saves it,
 share links encode it, the studio edits it, the backend stores it, and
 `buildGameFromDoc()` turns it into a runnable `GameDef`. The source of truth is
@@ -10,7 +10,9 @@ document and the code disagree, the code wins — file a doc fix.
 
 ## 1. What a GameDoc is
 
-A GameDoc is a plain JSON object marked `{ "boxcade": "gamedoc", "v": 1, … }`.
+A GameDoc is a plain JSON object marked `{ "blobcade": "gamedoc", "v": 2, … }`
+for the current format. Older v1 docs are still accepted when they avoid v2-only
+features such as `script`.
 It carries everything needed to reconstruct a game: metadata, world geometry
 (text map, voxel terrain, or explicit parts), camera/physics/lighting tuning,
 combat config, no-code `rules`, `vars`, and optional sandboxed `script`.
@@ -26,7 +28,7 @@ Design goals:
   explicit permission prompt, inside the Worker sandbox described in
   `docs/SCRIPTING.md`.
 - **One file, portable.** The whole game round-trips through a URL hash, a
-  `.boxcade.json` download, or a DB row. Size caps (§6) are part of the format
+  `.blobcade.json` download, or a DB row. Size caps (§6) are part of the format
   because docs live forever in those places.
 - **Forward/backward tolerant.** See the versioning contract (§2).
 
@@ -36,14 +38,14 @@ Quoted verbatim from the `gamedoc.ts` header — decided once, kept forever:
 
 > - integer `v`, linear `migrateGameDoc()` chain
 > - unknown FIELDS → warn and ignore (old clients degrade gracefully)
-> - unknown VERSION → hard error ("made with a newer Boxcade")
+> - unknown VERSION → hard error ("made with a newer Blobcade")
 > - extensible content (materials, weapons, tiles, behaviors, sky presets,
 >   rule actions) is referenced by registry NAME STRINGS, never by index.
 
 Concretely, `validateGameDoc()`:
 
 - requires integer `v`; `v > GAMEDOC_VERSION` is a hard **error**
-  (`"made with a newer Boxcade … refresh / update to play it"`); `v < 1` errors.
+  (`"made with a newer Blobcade … refresh / update to play it"`); `v < 1` errors.
 - collects unknown top-level keys as **warnings** (`unknown field 'x' ignored`)
   and still builds. Unknown `DocPart.kind`, rule trigger types, and rule action
   types are likewise **skipped with a warning**, not fatal.
@@ -57,26 +59,31 @@ build/spawn time, so adding content never renumbers existing docs.
 
 ## 3. Top-level fields
 
-`GameDoc` (see `gamedoc.ts`). `boxcade`, `v`, and `meta` are required; the rest
+`GameDoc` (see `gamedoc.ts`). `blobcade`, `v`, and `meta` are required; the rest
 are optional.
 
 | Field | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `boxcade` | `'gamedoc'` | — | Required marker. Must equal `"gamedoc"`. |
+| `blobcade` | `'gamedoc'` | — | Required marker. Must equal `"gamedoc"`. |
 | `v` | integer | — | Format version. Current = `2` (`GAMEDOC_VERSION`). |
 | `meta` | `GameDocMeta` | — | Required. See §3.1. |
+| `maxPlayers` | integer 1–250 | server default | Preferred room capacity; server clamps/validates. |
 | `camera` | `'orbit' \| 'fp'` | engine default | Orbit (third-person) or first-person rig. |
-| `physics` | `{ gravity?, jumpVel?, walkSpeed? }` | engine defaults | All members are numbers; partial objects are fine. |
+| `physics` | `{ gravity?, jumpVel?, walkSpeed?, fallDamage? }` | engine defaults | Numbers plus optional `fallDamage` boolean; partial objects are fine. |
 | `lighting` | string | none | Sky **preset name** (built-in or registered), e.g. `noon`, `goldenHour`, `night`, `space`. Validated as a string only; unknown names fall back at build time. |
 | `killY` | number | none | Y below which the player dies (fall-out plane). |
 | `spawn` | `[x,y,z]` | from world | Explicit spawn point. **Wins over** text-map `S` and voxel auto-spawn (§8). |
 | `rtReflections` | boolean | engine default | Enable real-time reflections (SSR) for this game. |
 | `combat` | `CombatConfig & { selfTeam?: string }` | none | Turns the game into a combat game. See §3.2. |
-| `textmap` | string | none | ASCII level (the editor's native format). See §3.3 / `textmap.ts`. |
+| `services` | `{ chat?, leaderboard?, store? }` | runtime defaults | Per-game platform service toggles and local Blobcash store. See §3.3. |
+| `weapons` | `WeaponDef[]` | none | Custom weapons-as-data, registered and namespaced at build time. Max 12. See §3.4. |
+| `textmap` | string | none | ASCII level (the editor's native format). See §3.5 / `textmap.ts`. |
 | `parts` | `DocPart[]` | none | Explicit placed objects. See §4. |
 | `voxel` | `{ data?, seed?, size?, palette? }` | none | Voxel terrain: saved `data` string, or procedural `seed`/`size`/`palette`. `size` is an integer 16–256; `palette` is an array of integer block ids. |
 | `rules` | `Rule[]` | none | No-code logic. See §5. |
 | `vars` | `Record<string, number>` | none | Named counters; each declared var gets an auto HUD chip (§5.4). |
+| `levels` | `GameDoc[]` | none | Extra levels for this game, depth 1 only, max 8. Sub-docs may omit `blobcade`/`v`/`meta` and inherit selected parent fields. |
+| `studio` | `GameDocStudio` | none | Editor-only Studio metadata: schema, mode, settings, and script ownership. Ignored by runtime. |
 | `script` | string | none | Optional sandboxed creator script. Requires GameDoc v2 and explicit runtime permission. Cap: 64 KB. |
 
 ### 3.1 `meta`
@@ -93,7 +100,7 @@ are optional.
 | `thumb` | string | ≤80 KB | Generated thumbnail **data URL** — never an uploaded asset. |
 
 Build-time defaults (`interpret.ts`): missing `blurb` → "A community-made
-Boxcade game.", `emoji` → 🎮, `gradient` → the house purple/blue, `genre` →
+Blobcade game.", `emoji` → 🎮, `gradient` → the house purple/blue, `genre` →
 "Community", `id` → `slugifyName(name)`.
 
 ### 3.2 `combat`
@@ -114,7 +121,29 @@ Boxcade game.", `emoji` → 🎮, `gradient` → the house purple/blue, `genre` 
 build time. Weapon-id strings also bind `weaponSpawn` parts and `weaponSpawn`
 text-map tiles (§8).
 
-### 3.3 `textmap`
+### 3.3 `services`
+
+`services` controls optional platform features for this game:
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `chat` | boolean | `false` hides and disables in-game chat. |
+| `leaderboard` | boolean | `false` disables best-time submission for published games. |
+| `store` | `StoreItem[]` | Up to 8 per-game cosmetic recolors bought with Blobcash. Purchases persist locally per game; published games can credit creator earnings through the server API. |
+
+Store items require lowercase slug `id`, `name` ≤24, `kind` `shirt` or `trail`,
+hex `color`, and integer `price` 1–500.
+
+### 3.4 `weapons`
+
+`weapons` is an array of custom `WeaponDef` objects. Each entry needs a lowercase
+slug `id` (≤24), `name` (≤24), `kind` `hitscan` or `projectile`, `damage` 1–100
+and `fireRate` 0.1–20. Optional fields include `icon`, `pellets`, `spread`,
+`range`, `beamColor`, `beamWidth`, `zoomFov`, ammo fields, `sound`, and a
+`projectile` object. At build time, custom weapon ids are namespaced by game id
+before registration so community docs do not collide with built-ins.
+
+### 3.5 `textmap`
 
 An ASCII level drawn one character per tile (default 2×2 m), centered on the
 origin, with `---` floor separators and `@directive` lines. The full tile legend
@@ -131,18 +160,19 @@ single string in the doc (cap: 64 KB).
 `parts` is an array of `DocPart`. **All vectors are `[x, y, z]`** (`DocV3`).
 Every part may carry an optional `id` and/or `tag`; only `kind: 'part'` parts
 are registered for rules, and only those are addressable/moveable by rule
-actions in v1 (§5.3). A `tag` may be shared by many parts — a rule that targets
-it affects all of them.
+actions in the current rule surface (§5.3). A `tag` may be shared by many parts
+— a rule that targets it affects all of them.
 
 | Kind | Required | Optional | Notes |
 | --- | --- | --- | --- |
-| `part` | `at`, `size` | `color`, `material`, `rotY`, `collide`, `reflect`, `bounce`, `behaviors[]` | The general rounded-box primitive. `size` components must be `0 < n ≤ 600`. `material` is a registry name. `behaviors` are `BehaviorDef[]` (each needs a `type` string; resolved via `behaviorFromDef`). **The only addressable/moveable kind.** |
+| `part` | `at`, `size` | `color`, `material`, `rotY`, `collide`, `reflect`, `bounce`, `hitbox`, `behaviors[]` | The general rounded-box primitive. `size`/`hitbox` components must be `0 < n ≤ 600`. `material` is a registry name. `behaviors` are `BehaviorDef[]` (each needs a `type` string; resolved via `behaviorFromDef`). **The only addressable/moveable kind.** |
 | `coin` | `at` | — | Collectible coin. |
 | `healthPack` | `at` | — | +HP pickup (combat games). |
 | `ammoSpawn` | `at` | — | Ammo crate (combat games). |
 | `tree` | `at` | `scale` | Decorative tree. |
 | `cloud` | `at` | `scale` | Decorative cloud. |
 | `lava` | `at` | `size` | Kill volume. `size` default `[2,1,2]`. |
+| `water` | `at` | `size` | Water volume with swimming/buoyancy behavior. |
 | `winPad` | `at` | `size` | Golden win pad (confetti + fanfare). |
 | `checkpoint` | `at` | `index`, `size` | Respawn checkpoint. `index` default `1`. |
 | `bouncePad` | `at` | `power`, `size` | Launch pad. |
@@ -150,10 +180,19 @@ it affects all of them.
 | `spinnerHazard` | `at`, `radius` | `count`, `period` | Rotating blade hazard. |
 | `label` | `at`, `text` | `scale`, `color` | Floating text (≤80 chars). |
 | `light` | `at` | `color`, `intensity`, `range` | Point light. |
+| `vehicle` | `at`, `vehicle` | `speed`, `fuel`, `color` | Parked vehicle. `vehicle` is `car`, `jetpack`, `boat`, or `plane`; speed 1–80; fuel 1–600. |
+| `gravityZone` | `at`, `size`, `gravity` | `color` | Non-solid gravity volume. `gravity` is 0.05–3. |
+| `ladder` | `at` | `size`, `color`, `rotY` | Climbable ladder volume. |
+| `button` | `at` | `size`, `color`, `rotY` | Interactive prefab intended for touch rules. |
+| `door` | `at` | `size`, `color`, `material`, `rotY` | Door prefab, usually opened by rule actions. |
+| `mover` | `at`, `size`, `by` | `period`, `color`, `material`, `rotY` | Moving platform prefab. |
+| `portal` | `at`, `target` | `label`, `size`, `color`, `rotY` | Step-through gateway. `target` grammar: `g:<id>`, `draft:<key>`, `level:<n>`, or `home`. |
 
 Unknown `kind` values are skipped with a warning (forward-compat). Note the
-field-name split for sized hazards/pads: `lava`/`winPad`/`checkpoint`/
-`bouncePad` use an **optional** `size`, while `part` **requires** `size`.
+field-name split for sized hazards/pads: `lava`/`water`/`winPad`/
+`checkpoint`/`bouncePad` use an **optional** `size`, while `part`, `mover` and
+`gravityZone` require `size`. `rotY` is visual-only yaw in radians; collision
+stays axis-aligned.
 
 ## 5. Rules (no-code logic)
 
@@ -172,7 +211,7 @@ actions call the same `GameContext` APIs hand-written games use.
 
 ### 5.1 Triggers (`when`)
 
-`RULE_TRIGGER_TYPES = start, touch, timer, coin, kill, enterRegion, varReaches, event`.
+`RULE_TRIGGER_TYPES = start, touch, timer, coin, kill, checkpoint, hurt, enterRegion, varReaches, event`.
 
 | `type` | Fields | Fires when |
 | --- | --- | --- |
@@ -181,6 +220,8 @@ actions call the same `GameContext` APIs hand-written games use.
 | `timer` | `after?`, `every?` | First fire at `t = after ?? every ?? 1` s. With `every`, repeats every `every` s; otherwise one-shot. |
 | `coin` | — | Player collects a coin (`player:coin`). |
 | `kill` | — | A combat kill happens (`combat:kill`). |
+| `checkpoint` | — | Player touches a checkpoint (`player:checkpoint`). |
+| `hurt` | — | Local player takes damage (`self:damage`). |
 | `enterRegion` | `min`, `max` (both `[x,y,z]`, **required**) | Player enters the AABB. **Edge-triggered**: fires on entry; leaving re-arms it. |
 | `varReaches` | `var` (string), `gte` (number) — both **required** | A var rises to `≥ gte`. **Edge-triggered**: fires once on crossing; dropping back below `gte` re-arms it. May fire at start if the initial value already satisfies it. |
 | `event` | `name` (string, **required**) | A named engine/rule event fires (see `emit`). |
@@ -193,16 +234,20 @@ eq | ne | gt | gte | lt | lte`. An unset var reads as `0`.
 
 ### 5.3 Actions (`do`)
 
-Non-empty array, max `actionsPerRule` (16). `RULE_ACTION_TYPES = toast, big,
-celebrate, win, kill, teleport, award, movePart, removePart, openDoor,
-spawnPart, setVar, addVar, sound, emit`.
+Non-empty array, max `actionsPerRule` (16). Any action may set
+`forEveryone: true`; world-changing replicated actions then run through the
+host/room event path instead of only the triggering client.
+
+`RULE_ACTION_TYPES = toast, big, celebrate, win, kill, teleport, award,
+movePart, removePart, openDoor, spawnPart, setVar, addVar, givePoints, restart,
+sound, emit, goTo`.
 
 | `type` | Fields | Effect |
 | --- | --- | --- |
 | `toast` | `text` (**required**) | HUD toast. |
 | `big` | `text` (**required**) | Big centered banner. |
 | `celebrate` | `text?` | Confetti + message. |
-| `win` | `text?` | Celebrate (default `🏆 YOU WIN!`) and award 25 Bolts. |
+| `win` | `text?` | Celebrate (default `🏆 YOU WIN!`) and award 25 Blobcash. |
 | `kill` | — | Kill the player. |
 | `teleport` | `to` (`[x,y,z]`, **required**) | Move player to a point. |
 | `award` | `amount?` | Award coins (default `1`). |
@@ -212,8 +257,11 @@ spawnPart, setVar, addVar, sound, emit`.
 | `spawnPart` | `part` (a full `DocPart` with `kind:'part'`, **required**) | Spawn a new part at runtime; it is registered (so its `id`/`tag` work). |
 | `setVar` | `var`, `value` (both **required**) | Set a counter. |
 | `addVar` | `var` (**required**), `value?` | Add to a counter (default `+1`). |
+| `givePoints` | `var?`, `amount?` | Score sugar: add points to a named var or default score var. |
+| `restart` | — | Restart the current game/session route. |
 | `sound` | `name` (**required**) | Play a synth sound — only from the whitelist below; others are ignored. |
 | `emit` | `name` (**required**) | Emit a custom event. Names starting with a reserved prefix are refused with a console warning. |
+| `goTo` | `target` (**required**) | Navigate via `platform:goToGame`; target grammar matches portal targets. |
 
 `part` in an action is an id **or** a tag and may match many parts; all matches
 are affected. Only `kind:'part'` parts are ever registered, so only they can be
@@ -223,8 +271,9 @@ moved/removed/opened — pointing an action at a `coin`/`lava`/etc. id is a no-o
 `checkpoint`, `bounce`, `splash`, `explosion`, `capture`, `chat`.
 
 **Reserved event prefixes** (`RESERVED_EVENT_PREFIXES`): `combat:`, `self:`,
-`player:`, `game:`, `net:`. Rules may **listen** to these via an `event` trigger
-but may **not** `emit` them (the engine owns them); attempts are dropped.
+`player:`, `game:`, `net:`, `platform:`. Rules may **listen** to these via an
+`event` trigger but may **not** `emit` them (the engine owns them); attempts are
+dropped. `goTo` is the supported way to emit a `platform:` navigation intent.
 
 ### 5.4 `vars` and HUD chips
 
@@ -257,15 +306,28 @@ validation **error**.
 | `rules` | 200 | `rules` array length. |
 | `actionsPerRule` | 16 | `do` array length per rule. |
 | `vars` | 64 | Number of `vars` keys. |
+| `weapons` | 12 | Custom `weapons` array length. |
 | `name` | 48 | `meta.name`. |
 | `blurb` | 140 | `meta.blurb`. |
 | `author` | 24 | `meta.author`. |
 | `labelText` | 80 | `label` part `text`. |
-| `ref` | 40 | Part `id`/`tag`, var names. |
+| `ref` | 40 | Part `id`/`tag`, var names, store ids, color strings. |
+| `portalLabel` | 40 | `portal.label`. |
+| `vehicleSpeed` | 80 | `vehicle.speed` upper bound. |
+| `vehicleFuel` | 600 | `vehicle.fuel` upper bound. |
+| `gravityZone` | 3 | `gravityZone.gravity` upper bound. |
+| `storeItems` | 8 | `services.store` array length. |
+| `storeItemName` | 24 | Store item display name. |
+| `storeItemPrice` | 500 | Store item price upper bound. |
+| `levels` | 8 | Extra `levels` array length. |
+| `maxPlayers` | 250 | `maxPlayers` upper bound. |
+| `script` | 64 KB | `script` string length. |
+| `studioSettings` | 16 KB | JSON stringified `studio.settings`. |
 
-Additional structural bounds: `part` `size` components `0 < n ≤ 600`;
+Additional structural bounds: `part`/`hitbox` `size` components `0 < n ≤ 600`;
 `voxel.size` integer `16–256`; `meta.id` ≤64; `meta.emoji` ≤8;
-`meta.gradient` ≤200; `meta.genre` ≤24; `meta.thumb` ≤80 KB.
+`meta.gradient` ≤200; `meta.genre` ≤24; `meta.thumb` ≤80 KB; custom weapon
+ids/names ≤24; store item prices are integers 1–500.
 
 ## 7. Share links
 
@@ -288,7 +350,7 @@ delivery method, not a hard parse cap (the hard cap is the 256 KB `json` limit).
 The fallback chain, longest-link-first:
 
 1. **URL** — `#/play/d/{payload}` when the payload ≤ ~8 KB.
-2. **`.boxcade.json` file** — download/attach the raw doc when it is too big or
+2. **`.blobcade.json` file** — download/attach the raw doc when it is too big or
    too fragile for a link.
 3. **Hosted id** — publish and share by `meta.id` for large or canonical games.
 
@@ -303,6 +365,11 @@ The fallback chain, longest-link-first:
 4. `voxel` → `w.voxelIsland(…)`
 5. `parts` → each `DocPart` via the matching `WorldBuilder` verb
 6. `spawn` → `w.spawn(…)` **last**, so it overrides any earlier spawn
+
+`maxPlayers`, `physics`, `combat`, `services`, `weapons`, `levels`, `studio`
+and `script` are not placed directly in the world. The interpreter copies them
+into the resulting `GameDef`, registers custom weapons, resolves the selected
+level, and creates rules/script systems when needed.
 
 **Spawn precedence (last wins).** A text-map `S` tile and voxel auto-spawn set a
 spawn during steps 3–4; an explicit `doc.spawn` runs in step 6 and therefore
@@ -324,8 +391,8 @@ tagged door and toasts. Valid per `gamedoc.ts` and `rules.ts`.
 
 ```json
 {
-  "boxcade": "gamedoc",
-  "v": 1,
+  "blobcade": "gamedoc",
+  "v": 2,
   "meta": { "name": "Button Bridge", "blurb": "Hit the button, cross the gap.", "emoji": "🚪", "genre": "Obby" },
   "camera": "orbit",
   "lighting": "goldenHour",
@@ -368,4 +435,7 @@ tagged door and toasts. Valid per `gamedoc.ts` and `rules.ts`.
   community-buildable surface; the rule vocabulary is intentionally bounded.
 - **Limited addressability.** Only `kind:'part'` objects are registered and thus
   moveable/removable/openable by rules; pickups, hazards and decoration are
-  placed-and-forgotten in v1.
+  placed-and-forgotten by the current rule surface.
+- **No installable package plugins yet.** GameDocs can reference registry names
+  and carry custom weapons/services, but package manifests, dependency locking,
+  permission prompts and plugin install/enable/disable are roadmap work.

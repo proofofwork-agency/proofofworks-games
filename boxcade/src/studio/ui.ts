@@ -77,20 +77,20 @@ const STORE_KINDS: Array<[StoreItem['kind'], string]> = [['shirt', 'shirt'], ['t
 const SCRIPT_STARTER = `let wave = 0
 let nextWaveAt = 1
 
-boxcade.onStart(() => {
-  boxcade.toast('Survive the waves!')
-  boxcade.setVar('wave', 0)
+blobcade.onStart(() => {
+  blobcade.toast('Survive the waves!')
+  blobcade.setVar('wave', 0)
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost || time < nextWaveAt) return
   wave += 1
-  boxcade.setVar('wave', wave)
-  boxcade.big('Wave ' + wave)
+  blobcade.setVar('wave', wave)
+  blobcade.big('Wave ' + wave)
   const count = 2 + wave
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2
-    boxcade.spawnBot({
+    blobcade.spawnBot({
       name: 'Bot ' + wave + '-' + i,
       team: 'enemy',
       skill: Math.min(1, 0.35 + wave * 0.04),
@@ -202,7 +202,7 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
 
   // ----- top bar -----
   const top = el('div', 'studio-top')
-  const back = btn('⬅ Boxcade', 'ghost')
+  const back = btn('⬅ Blobcade', 'ghost')
   back.onclick = () => { location.hash = '' }
   const nameField = textInput(api.doc.meta.name, (v) => {
     api.mutateSettings((d) => { d.meta.name = (v.trim() || 'My Studio Game').slice(0, 48) })
@@ -233,15 +233,19 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
   txtB.title = 'Download this floor plan as a .txt text map'
   txtB.onclick = () => api.downloadTextmap()
   const jsonB = btn('⬇ JSON', 'ghost')
-  jsonB.title = 'Download this game as a .boxcade.json file'
+  jsonB.title = 'Download this game as a .blobcade.json file'
   jsonB.onclick = () => api.downloadJson()
   const tsB = btn('⬇ TS', 'ghost')
   tsB.title = 'Export a trusted TypeScript starter for local developer mode'
   tsB.onclick = () => api.downloadTypeScript()
   const shareB = btn('🔗 Share', 'ghost')
   shareB.onclick = async () => {
-    const res = await api.share()
-    api.toast(res.copied ? '🔗 Share link copied!' : '📦 Too big for a link — file downloaded')
+    try {
+      const res = await api.share()
+      api.toast(res.copied ? '🔗 Share link copied!' : '📦 Too big for a link — file downloaded')
+    } catch (err) {
+      api.toast(err instanceof Error ? `Could not share: ${err.message}` : 'Could not share this game.')
+    }
   }
   top.append(back, nameField, partChip, buildModeB, floorB, snapB, savedChip, undoB, redoB, helpB, txtB, jsonB, tsB, playB, shareB)
   shell.appendChild(top)
@@ -1232,7 +1236,7 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
     const mode = getStudioMode(doc)
     const settings = getStudioModeSettings(doc, mode)
     mount.appendChild(el('h3', '', 'Game Mode'))
-    mount.appendChild(el('p', 'st-hint', 'Mode Builder generates normal Boxcade parts, combat settings, vars, rules and sandbox scripts. Your own placed parts stay untouched.'))
+    mount.appendChild(el('p', 'st-hint', 'Mode Builder generates normal Blobcade parts, combat settings, vars, rules and sandbox scripts. Your own placed parts stay untouched.'))
 
     mount.appendChild(row('mode', selectInput(STUDIO_MODE_OPTIONS, mode, (v) => {
       const next = v as StudioGameMode

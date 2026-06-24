@@ -2,11 +2,13 @@
 // native CompressionStream API (browsers + Node ≥ 18) — zero dependencies.
 // Share links carry this payload in the URL hash: #/play/d/{payload}.
 
-import type { GameDoc } from './gamedoc'
+import { validateGameDoc, type GameDoc } from './gamedoc'
 
 /** encoded payloads above this are too fragile for chat apps/proxies — use a
  *  file download or a hosted link instead (the UI offers the fallback) */
 export const SHARE_LINK_LIMIT = 8 * 1024
+export const SHARE_LINK_DECODE_LIMIT = SHARE_LINK_LIMIT
+const SHARE_LINK_ALPHABET = /^[A-Za-z0-9_-]+$/
 
 async function pipe(bytes: Uint8Array, transform: CompressionStream | DecompressionStream): Promise<Uint8Array> {
   const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(transform)
@@ -38,19 +40,28 @@ export async function encodeGameDoc(doc: GameDoc | object | string): Promise<str
   return toBase64Url(deflated)
 }
 
-/** payload → parsed JSON (validate with validateGameDoc before running!) */
-export async function decodeGameDoc(payload: string): Promise<unknown> {
+/** payload → validated GameDoc */
+export async function decodeGameDoc(payload: string): Promise<GameDoc> {
+  if (!payload || payload.length > SHARE_LINK_DECODE_LIMIT || !SHARE_LINK_ALPHABET.test(payload)) {
+    throw new Error('this share link is invalid or too large')
+  }
   let inflated: Uint8Array
   try {
     inflated = await pipe(fromBase64Url(payload), new DecompressionStream('deflate-raw'))
   } catch {
     throw new Error('this share link is damaged or incomplete')
   }
+  let decoded: unknown
   try {
-    return JSON.parse(new TextDecoder().decode(inflated))
+    decoded = JSON.parse(new TextDecoder().decode(inflated))
   } catch {
-    throw new Error('this share link does not contain a Boxcade game')
+    throw new Error('this share link is invalid or from a newer version of Blobcade')
   }
+  const res = validateGameDoc(decoded)
+  if (!res.ok || !res.doc) {
+    throw new Error(res.errors[0] ?? 'this share link does not contain a valid Blobcade game')
+  }
+  return res.doc
 }
 
 /** stable short hash of a doc's canonical JSON — doc identity for room keys */

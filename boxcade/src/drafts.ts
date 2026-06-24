@@ -1,13 +1,13 @@
 // The local draft library — "My Games" lives in localStorage. One index key
-// (boxcade.myGames) plus one key per draft (boxcade.draft.<key>) holding the
+// (blobcade.myGames) plus one key per draft (blobcade.draft.<key>) holding the
 // GameDoc JSON. Everything that creates or lists local games goes through
 // this module: the editor saves here, the portal shelf lists here, the
 // #/play/draft/<key> route loads here.
 
 import { validateGameDoc, type GameDoc } from './sdk'
 
-const INDEX_KEY = 'boxcade.myGames'
-const DRAFT_PREFIX = 'boxcade.draft.'
+const INDEX_KEY = 'blobcade.myGames'
+const DRAFT_PREFIX = 'blobcade.draft.'
 
 export interface DraftEntry {
   key: string
@@ -73,7 +73,7 @@ export function duplicateDraft(key: string): string | null {
   return saveDraft(null, copy)
 }
 
-/** import a .boxcade.json file's text; returns the key or friendly errors */
+/** import a .blobcade.json file's text; returns the key or friendly errors */
 export function importDraft(text: string): { key?: string; errors?: string[] } {
   const res = validateGameDoc(text)
   if (!res.ok || !res.doc) return { errors: res.errors }

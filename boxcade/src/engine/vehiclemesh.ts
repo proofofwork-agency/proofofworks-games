@@ -1,6 +1,6 @@
 // Procedural blocky vehicle meshes — the visual bodies for engine/vehicle.ts.
 // Same recipe as the avatar: a few rounded boxes + the shared material cache,
-// so vehicles read as native Boxcade objects. Group origin is bottom-center
+// so vehicles read as native Blobcade objects. Group origin is bottom-center
 // (Vehicle.pos) facing +Z (Vehicle.yaw = 0); name-tagged child parts let the
 // runtime animate them (prop spin, wheel roll).
 

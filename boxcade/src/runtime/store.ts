@@ -1,12 +1,12 @@
-// The per-game Bolts store — GameServices.store rendered as a HUD button +
+// The per-game Blobcash store — GameServices.store rendered as a HUD button +
 // buy/equip overlay. Purchases and equips persist per game in localStorage;
-// the wallet is the global Bolts balance. The runtime reacts through
+// the wallet is the global Blobcash balance. The runtime reacts through
 // onChange (recolor the avatar / trail); the shell hears onBuy (creator cut).
 
 import { economy } from '../engine/economy'
 import type { StoreItemDef } from '../sdk'
 
-const KEY_PREFIX = 'boxcade.store.'
+const KEY_PREFIX = 'blobcade.store.'
 
 interface Persisted {
   owned: string[]
@@ -66,7 +66,7 @@ export function createGameStore(opts: {
   button.className = 'hud-chip'
   button.textContent = '🛍️ Store'
   button.style.cursor = 'pointer'
-  button.title = 'This game sells cosmetics for Bolts'
+  button.title = 'This game sells cosmetics for Blobcash'
 
   let overlay: HTMLElement | null = null
   const close = () => {
@@ -88,7 +88,12 @@ export function createGameStore(opts: {
       const row = document.createElement('div')
       row.style.cssText = 'display:flex;align-items:center;gap:10px'
       const swatch = document.createElement('span')
-      swatch.style.cssText = `width:22px;height:22px;border-radius:6px;background:${item.color};border:2px solid rgba(255,255,255,.35);flex:none`
+      swatch.style.width = '22px'
+      swatch.style.height = '22px'
+      swatch.style.borderRadius = '6px'
+      swatch.style.backgroundColor = item.color
+      swatch.style.border = '2px solid rgba(255,255,255,.35)'
+      swatch.style.flex = 'none'
       const label = document.createElement('span')
       label.style.cssText = 'flex:1'
       label.textContent = `${item.name} · ${item.kind === 'shirt' ? 'shirt' : 'trail'}`
@@ -104,7 +109,7 @@ export function createGameStore(opts: {
         const owned = state.owned.includes(item.id)
         if (!owned) {
           if (!economy.spend(item.price)) {
-            opts.toast('Not enough Bolts — play to earn more!')
+            opts.toast('Not enough Blobcash — play to earn more!')
             return
           }
           state.owned.push(item.id)

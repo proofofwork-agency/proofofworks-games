@@ -51,29 +51,29 @@ const DENIED_GLOBALS = [
 const RESERVED_EMIT_PREFIXES = ['combat:', 'self:', 'player:', 'game:', 'net:', 'platform:']
 
 export const SCRIPT_API: ScriptApiEntry[] = [
-  { name: 'onStart', signature: 'boxcade.onStart(fn)', desc: 'Run once after the sandbox starts.' },
-  { name: 'onTick', signature: 'boxcade.onTick((time, dt, state) => {})', desc: 'Run every frame with time, delta and safe state.' },
-  { name: 'on', signature: 'boxcade.on(event, fn)', desc: 'Listen to engine or custom events.' },
-  { name: 'log', signature: 'boxcade.log(value)', desc: 'Write to the dev console only.' },
-  { name: 'toast', signature: 'boxcade.toast(text)', desc: 'Show a small HUD message.' },
-  { name: 'big', signature: 'boxcade.big(text)', desc: 'Show a large HUD message.' },
-  { name: 'celebrate', signature: 'boxcade.celebrate(text?)', desc: 'Trigger the celebration flow.' },
-  { name: 'win', signature: 'boxcade.win(text?)', desc: 'Mark local victory and award Bolts.' },
-  { name: 'kill', signature: 'boxcade.kill()', desc: 'Kill the local player.' },
-  { name: 'teleport', signature: 'boxcade.teleport([x,y,z])', desc: 'Move the local player.' },
-  { name: 'award', signature: 'boxcade.award(amount)', desc: 'Award a small amount through the host.' },
-  { name: 'movePart', signature: 'boxcade.movePart(id, byOrTo, seconds?)', desc: 'Tween a registered part.' },
-  { name: 'openDoor', signature: 'boxcade.openDoor(id, seconds?)', desc: 'Slide a registered part down.' },
-  { name: 'removePart', signature: 'boxcade.removePart(id)', desc: 'Remove a registered part.' },
-  { name: 'spawnPart', signature: 'boxcade.spawnPart(part)', desc: 'Spawn a simple part.' },
-  { name: 'setVar', signature: 'boxcade.setVar(name, value)', desc: 'Set a HUD/rules counter.' },
-  { name: 'addVar', signature: 'boxcade.addVar(name, amount?)', desc: 'Increment a HUD/rules counter.' },
-  { name: 'sound', signature: 'boxcade.sound(name)', desc: 'Play an allowed rule sound.' },
-  { name: 'emit', signature: 'boxcade.emit(name)', desc: 'Emit a custom event; engine prefixes are blocked.' },
-  { name: 'goTo', signature: 'boxcade.goTo(target)', desc: 'Navigate to home, level, draft or published game.' },
-  { name: 'spawnBot', signature: 'boxcade.spawnBot(opts)', desc: 'Spawn a combat bot.' },
-  { name: 'setSpawnPoints', signature: 'boxcade.setSpawnPoints(points)', desc: 'Set session spawn points.' },
-  { name: 'entity', signature: 'boxcade.entity(id)', desc: 'Get a limited entity command proxy.' },
+  { name: 'onStart', signature: 'blobcade.onStart(fn)', desc: 'Run once after the sandbox starts.' },
+  { name: 'onTick', signature: 'blobcade.onTick((time, dt, state) => {})', desc: 'Run every frame with time, delta and safe state.' },
+  { name: 'on', signature: 'blobcade.on(event, fn)', desc: 'Listen to engine or custom events.' },
+  { name: 'log', signature: 'blobcade.log(value)', desc: 'Write to the dev console only.' },
+  { name: 'toast', signature: 'blobcade.toast(text)', desc: 'Show a small HUD message.' },
+  { name: 'big', signature: 'blobcade.big(text)', desc: 'Show a large HUD message.' },
+  { name: 'celebrate', signature: 'blobcade.celebrate(text?)', desc: 'Trigger the celebration flow.' },
+  { name: 'win', signature: 'blobcade.win(text?)', desc: 'Mark local victory and award Blobcash.' },
+  { name: 'kill', signature: 'blobcade.kill()', desc: 'Kill the local player.' },
+  { name: 'teleport', signature: 'blobcade.teleport([x,y,z])', desc: 'Move the local player.' },
+  { name: 'award', signature: 'blobcade.award(amount)', desc: 'Award a small amount through the host.' },
+  { name: 'movePart', signature: 'blobcade.movePart(id, byOrTo, seconds?)', desc: 'Tween a registered part.' },
+  { name: 'openDoor', signature: 'blobcade.openDoor(id, seconds?)', desc: 'Slide a registered part down.' },
+  { name: 'removePart', signature: 'blobcade.removePart(id)', desc: 'Remove a registered part.' },
+  { name: 'spawnPart', signature: 'blobcade.spawnPart(part)', desc: 'Spawn a simple part.' },
+  { name: 'setVar', signature: 'blobcade.setVar(name, value)', desc: 'Set a HUD/rules counter.' },
+  { name: 'addVar', signature: 'blobcade.addVar(name, amount?)', desc: 'Increment a HUD/rules counter.' },
+  { name: 'sound', signature: 'blobcade.sound(name)', desc: 'Play an allowed rule sound.' },
+  { name: 'emit', signature: 'blobcade.emit(name)', desc: 'Emit a custom event; engine prefixes are blocked.' },
+  { name: 'goTo', signature: 'blobcade.goTo(target)', desc: 'Navigate to home, level, draft or published game.' },
+  { name: 'spawnBot', signature: 'blobcade.spawnBot(opts)', desc: 'Spawn a combat bot.' },
+  { name: 'setSpawnPoints', signature: 'blobcade.setSpawnPoints(points)', desc: 'Set session spawn points.' },
+  { name: 'entity', signature: 'blobcade.entity(id)', desc: 'Get a limited entity command proxy.' },
 ]
 
 export const SCRIPT_ENTITY_API: ScriptApiEntry[] = [
@@ -229,7 +229,7 @@ export function analyzeStudioScript(script: string): StudioScriptAnalysis {
   if (script.length > 64 * 1024) warnings.push('Script is over the 64 KB GameDoc limit.')
   try {
     // Static parse only; the generated function is not invoked.
-    new Function('boxcade', `"use strict";\n${script}`)
+    new Function('blobcade', `"use strict";\n${script}`)
   } catch (err) {
     errors.push(err instanceof Error ? err.message : String(err))
   }
@@ -237,26 +237,26 @@ export function analyzeStudioScript(script: string): StudioScriptAnalysis {
     if (new RegExp(`\\b${token}\\b`).test(script)) warnings.push(`${token} is not available in the script sandbox.`)
   }
   if (/\bimport\s*\(/.test(script)) warnings.push('Dynamic import() is not available in creator scripts.')
-  const capabilities = [...script.matchAll(/\bboxcade\.([a-zA-Z_]\w*)/g)]
+  const capabilities = [...script.matchAll(/\bblobcade\.([a-zA-Z_]\w*)/g)]
     .map((m) => m[1])
     .filter((name, i, all) => all.indexOf(name) === i)
     .sort()
   for (const name of capabilities) {
-    if (!SCRIPT_METHODS.has(name)) warnings.push(`boxcade.${name} is not in the documented sandbox API.`)
+    if (!SCRIPT_METHODS.has(name)) warnings.push(`blobcade.${name} is not in the documented sandbox API.`)
   }
-  const entityMethods = [...script.matchAll(/\bboxcade\.entity\([^)]*\)\.([a-zA-Z_]\w*)/g)]
+  const entityMethods = [...script.matchAll(/\bblobcade\.entity\([^)]*\)\.([a-zA-Z_]\w*)/g)]
     .map((m) => m[1])
     .filter((name, i, all) => all.indexOf(name) === i)
     .sort()
   for (const name of entityMethods) {
     if (!ENTITY_METHODS.has(name)) warnings.push(`entity.${name} is not in the documented entity API.`)
   }
-  for (const match of script.matchAll(/\bboxcade\.emit\(\s*(['"`])([^'"`]+)\1/g)) {
+  for (const match of script.matchAll(/\bblobcade\.emit\(\s*(['"`])([^'"`]+)\1/g)) {
     if (RESERVED_EMIT_PREFIXES.some((prefix) => match[2].startsWith(prefix))) {
       warnings.push(`Reserved engine event '${match[2]}' can be listened to, but scripts cannot emit it.`)
     }
   }
-  for (const match of script.matchAll(/\bboxcade\.sound\(\s*(['"`])([^'"`]+)\1/g)) {
+  for (const match of script.matchAll(/\bblobcade\.sound\(\s*(['"`])([^'"`]+)\1/g)) {
     if (!['coin', 'win', 'jump', 'death', 'checkpoint', 'bounce', 'splash', 'explosion', 'capture', 'chat'].includes(match[2])) {
       warnings.push(`Sound '${match[2]}' is not in the documented rule sound whitelist.`)
     }
@@ -324,23 +324,23 @@ const scoreLimit = ${scoreLimit}
 const botCount = ${botCount}
 const spawns = ${JSON.stringify(spawns)}
 
-boxcade.onStart(() => {
-  boxcade.setSpawnPoints([[0,3,0],[4,3,0],[-4,3,0]])
-  boxcade.setVar('frags', 0)
-  boxcade.toast('Arena mode: first to ' + scoreLimit + ' frags wins.')
+blobcade.onStart(() => {
+  blobcade.setSpawnPoints([[0,3,0],[4,3,0],[-4,3,0]])
+  blobcade.setVar('frags', 0)
+  blobcade.toast('Arena mode: first to ' + scoreLimit + ' frags wins.')
 })
 
-boxcade.on('combat:kill', () => {
+blobcade.on('combat:kill', () => {
   frags += 1
-  boxcade.addVar('frags', 1)
-  if (frags >= scoreLimit) boxcade.win('Frag limit reached!')
+  blobcade.addVar('frags', 1)
+  if (frags >= scoreLimit) blobcade.win('Frag limit reached!')
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost || booted) return
   booted = true
   for (let i = 0; i < botCount; i++) {
-    boxcade.spawnBot({ name: 'Arena Bot ' + (i + 1), team: ${teamMode ? "i % 2 ? 'blue' : 'red'" : "'enemy'"}, skill: Math.min(1, 0.4 + i * 0.05), spawns: [spawns[i % spawns.length]], shirt: i % 2 ? '#3b82f6' : '#e74c3c' })
+    blobcade.spawnBot({ name: 'Arena Bot ' + (i + 1), team: ${teamMode ? "i % 2 ? 'blue' : 'red'" : "'enemy'"}, skill: Math.min(1, 0.4 + i * 0.05), spawns: [spawns[i % spawns.length]], shirt: i % 2 ? '#3b82f6' : '#e74c3c' })
   }
 })
 `,
@@ -370,23 +370,23 @@ const waveDelay = ${waveDelay}
 const winWave = ${winWave}
 const spawns = [[22,3,22],[-22,3,22],[22,3,-22],[-22,3,-22]]
 
-boxcade.onStart(() => {
-  boxcade.setSpawnPoints([[0,3,0],[4,3,0],[-4,3,0]])
-  boxcade.setVar('wave', 0)
-  boxcade.toast('Wave mode: survive the bot waves.')
+blobcade.onStart(() => {
+  blobcade.setSpawnPoints([[0,3,0],[4,3,0],[-4,3,0]])
+  blobcade.setVar('wave', 0)
+  blobcade.toast('Wave mode: survive the bot waves.')
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost || time < nextAt) return
   wave += 1
-  boxcade.setVar('wave', wave)
-  boxcade.big('Wave ' + wave)
+  blobcade.setVar('wave', wave)
+  blobcade.big('Wave ' + wave)
   const count = Math.min(24, baseBots + wave * botsPerWave)
   for (let i = 0; i < count; i++) {
     const s = spawns[i % spawns.length]
-    boxcade.spawnBot({ name: 'Wave ' + wave + '-' + (i + 1), team: 'enemy', skill: Math.min(1, 0.35 + wave * 0.04), spawns: [s], shirt: '#e74c3c' })
+    blobcade.spawnBot({ name: 'Wave ' + wave + '-' + (i + 1), team: 'enemy', skill: Math.min(1, 0.35 + wave * 0.04), spawns: [s], shirt: '#e74c3c' })
   }
-  if (winWave > 0 && wave >= winWave) boxcade.win('Cleared wave ' + wave + '!')
+  if (winWave > 0 && wave >= winWave) blobcade.win('Cleared wave ' + wave + '!')
   nextAt = time + Math.max(6, waveDelay - wave)
 })
 `,
@@ -429,37 +429,37 @@ const respawnDelay = ${respawnDelay}
 const redBase = [0,3,-24]
 const blueBase = [0,3,24]
 
-boxcade.onStart(() => {
-  boxcade.setSpawnPoints([[0,3,-20],[-5,3,-22],[5,3,-22]])
-  boxcade.setVar('red', 0)
-  boxcade.setVar('blue', 0)
-  boxcade.toast('CTF mode: steal the blue flag and return to red base.')
+blobcade.onStart(() => {
+  blobcade.setSpawnPoints([[0,3,-20],[-5,3,-22],[5,3,-22]])
+  blobcade.setVar('red', 0)
+  blobcade.setVar('blue', 0)
+  blobcade.toast('CTF mode: steal the blue flag and return to red base.')
 })
 
-boxcade.on('mode:blueFlag', () => { carrying = 'blue'; boxcade.big('Blue flag taken!') })
-boxcade.on('mode:redFlag', () => { carrying = 'red'; boxcade.big('Red flag taken!') })
-boxcade.on('mode:redBase', () => {
-  if (carrying === 'blue') { carrying = null; redScore += 1; boxcade.addVar('red', 1); boxcade.sound('capture'); boxcade.big('Red scores!'); if (redScore >= scoreLimit) boxcade.win('Red wins!') }
+blobcade.on('mode:blueFlag', () => { carrying = 'blue'; blobcade.big('Blue flag taken!') })
+blobcade.on('mode:redFlag', () => { carrying = 'red'; blobcade.big('Red flag taken!') })
+blobcade.on('mode:redBase', () => {
+  if (carrying === 'blue') { carrying = null; redScore += 1; blobcade.addVar('red', 1); blobcade.sound('capture'); blobcade.big('Red scores!'); if (redScore >= scoreLimit) blobcade.win('Red wins!') }
 })
-boxcade.on('mode:blueBase', () => {
-  if (carrying === 'red') { carrying = null; blueScore += 1; boxcade.addVar('blue', 1); boxcade.sound('capture'); boxcade.big('Blue scores!'); if (blueScore >= scoreLimit) boxcade.win('Blue wins!') }
-})
-
-boxcade.on('combat:kill', (event) => {
-  if (event && event.victimId) setTimeout(() => boxcade.entity(event.victimId).respawn(), respawnDelay * 1000)
+blobcade.on('mode:blueBase', () => {
+  if (carrying === 'red') { carrying = null; blueScore += 1; blobcade.addVar('blue', 1); blobcade.sound('capture'); blobcade.big('Blue scores!'); if (blueScore >= scoreLimit) blobcade.win('Blue wins!') }
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.on('combat:kill', (event) => {
+  if (event && event.victimId) setTimeout(() => blobcade.entity(event.victimId).respawn(), respawnDelay * 1000)
+})
+
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost) return
   if (time < 1.5 && state.entities.length === 0) {
     for (let i = 0; i < botsPerTeam; i++) {
-      boxcade.spawnBot({ name: 'Blue ' + (i + 1), team: 'blue', skill: 0.45 + i * 0.07, spawns: [[0,3,20],[-5,3,22],[5,3,22]], shirt: '#3b82f6' })
-      boxcade.spawnBot({ name: 'Red ' + (i + 1), team: 'red', skill: 0.45 + i * 0.07, spawns: [[0,3,-20],[-5,3,-22],[5,3,-22]], shirt: '#e74c3c' })
+      blobcade.spawnBot({ name: 'Blue ' + (i + 1), team: 'blue', skill: 0.45 + i * 0.07, spawns: [[0,3,20],[-5,3,22],[5,3,22]], shirt: '#3b82f6' })
+      blobcade.spawnBot({ name: 'Red ' + (i + 1), team: 'red', skill: 0.45 + i * 0.07, spawns: [[0,3,-20],[-5,3,-22],[5,3,-22]], shirt: '#e74c3c' })
     }
   }
   for (const e of state.entities) {
     if (!e.isBot || !e.alive) continue
-    boxcade.entity(e.id).setObjective(e.team === 'red' ? blueBase : redBase)
+    blobcade.entity(e.id).setObjective(e.team === 'red' ? blueBase : redBase)
   }
 })
 `,
@@ -505,37 +505,37 @@ const shrinkEvery = ${shrinkEvery}
 const botCount = ${botCount}
 const drops = [[-24,35,-24],[24,35,24],[-24,35,18],[18,35,-24],[0,35,28]]
 
-boxcade.onStart(() => {
-  boxcade.setVar('gas', radius)
-  boxcade.setVar('alive', botCount + 1)
-  boxcade.toast('Mini Royale: loot up and stay near the center.')
+blobcade.onStart(() => {
+  blobcade.setVar('gas', radius)
+  blobcade.setVar('alive', botCount + 1)
+  blobcade.toast('Mini Royale: loot up and stay near the center.')
 })
 
-boxcade.on('combat:kill', () => {
+blobcade.on('combat:kill', () => {
   alive = Math.max(1, alive - 1)
-  boxcade.setVar('alive', alive)
-  if (alive <= 1) boxcade.win('Last player standing!')
+  blobcade.setVar('alive', alive)
+  if (alive <= 1) blobcade.win('Last player standing!')
 })
 
-boxcade.onTick((time, dt, state) => {
+blobcade.onTick((time, dt, state) => {
   if (!state.isHost) return
   if (!booted) {
     booted = true
     for (let i = 0; i < botCount; i++) {
-      boxcade.spawnBot({ name: 'Dropper ' + (i + 1), team: 'enemy', skill: Math.min(1, 0.38 + i * 0.03), spawns: [drops[i % drops.length]], shirt: '#3b82f6' })
+      blobcade.spawnBot({ name: 'Dropper ' + (i + 1), team: 'enemy', skill: Math.min(1, 0.38 + i * 0.03), spawns: [drops[i % drops.length]], shirt: '#3b82f6' })
     }
   }
   if (time >= nextGas) {
     radius = Math.max(endRadius, radius - 4)
-    boxcade.setVar('gas', radius)
-    boxcade.toast('Gas radius: ' + radius)
+    blobcade.setVar('gas', radius)
+    blobcade.toast('Gas radius: ' + radius)
     nextGas = time + shrinkEvery
   }
   for (const e of state.entities) {
     if (!e.alive) continue
     const p = e.position
-    if (Math.hypot(p[0], p[2]) > radius) boxcade.entity(e.id).hurt(4, 'gas', 'gas')
-    if (e.isBot) boxcade.entity(e.id).setObjective([0, 2, 0])
+    if (Math.hypot(p[0], p[2]) > radius) blobcade.entity(e.id).hurt(4, 'gas', 'gas')
+    if (e.isBot) blobcade.entity(e.id).setObjective([0, 2, 0])
   }
 })
 `,

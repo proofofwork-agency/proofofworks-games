@@ -7,7 +7,7 @@ type HttpModule = {
   validateEmbedUrl(input: unknown): string | null
 }
 
-process.env.BOXCADE_DB ??= path.join(mkdtempSync(path.join(tmpdir(), 'boxcade-embed-test-')), 'boxcade.db')
+process.env.BOXCADE_DB ??= path.join(mkdtempSync(path.join(tmpdir(), 'blobcade-embed-test-')), 'blobcade.db')
 
 async function httpModule(): Promise<HttpModule> {
   // Import lazily so tests can run without coupling to the live server process.

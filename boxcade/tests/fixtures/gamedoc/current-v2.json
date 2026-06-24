@@ -1,0 +1,114 @@
+{
+  "blobcade": "gamedoc",
+  "v": 2,
+  "meta": {
+    "name": "Fixture Current V2",
+    "emoji": "🧪",
+    "genre": "Compatibility",
+    "blurb": "Canonical current-version GameDoc fixture."
+  },
+  "camera": "fp",
+  "lighting": "night",
+  "spawn": [0, 3, 0],
+  "killY": -30,
+  "maxPlayers": 16,
+  "rtReflections": true,
+  "physics": {
+    "gravity": -46,
+    "jumpVel": 14,
+    "walkSpeed": 8,
+    "fallDamage": false
+  },
+  "combat": {
+    "selfTeam": "red",
+    "health": 100,
+    "weapons": ["sidearm", "pulse", "fixture-blaster"],
+    "startWeapons": ["sidearm"],
+    "infiniteAmmo": false
+  },
+  "services": {
+    "chat": true,
+    "leaderboard": true,
+    "store": [
+      {
+        "id": "fixture-shirt",
+        "name": "Fixture Shirt",
+        "kind": "shirt",
+        "color": "#5d6df1",
+        "price": 50
+      }
+    ]
+  },
+  "weapons": [
+    {
+      "id": "fixture-blaster",
+      "name": "Fixture Blaster",
+      "icon": "✨",
+      "kind": "projectile",
+      "damage": 12,
+      "fireRate": 2,
+      "projectile": {
+        "speed": 36,
+        "radius": 0.16,
+        "color": "#5dff5d",
+        "life": 2
+      },
+      "ammoMax": 30,
+      "ammoPickup": 10,
+      "sound": "pulse"
+    }
+  ],
+  "vars": {
+    "score": 0
+  },
+  "script": "blobcade.onStart(() => blobcade.toast('Fixture ready'))",
+  "parts": [
+    { "kind": "part", "id": "floor", "at": [0, 0, 0], "size": [24, 1, 24], "color": "#6cc04a", "material": "grass" },
+    { "kind": "coin", "at": [2, 2, 0] },
+    { "kind": "healthPack", "at": [4, 1.5, 0] },
+    { "kind": "ammoSpawn", "at": [6, 1.5, 0] },
+    { "kind": "tree", "at": [-6, 0, -4], "scale": 1 },
+    { "kind": "cloud", "at": [0, 8, -8], "scale": 1 },
+    { "kind": "lava", "at": [-4, 0.4, 4], "size": [3, 0.5, 3] },
+    { "kind": "water", "at": [4, 0.2, 4], "size": [4, 0.5, 4] },
+    { "kind": "winPad", "at": [0, 1, 8], "size": [4, 0.5, 4] },
+    { "kind": "checkpoint", "at": [0, 1, -8], "index": 1, "size": [4, 0.5, 4] },
+    { "kind": "bouncePad", "at": [8, 1, 0], "power": 24, "size": [3, 0.5, 3] },
+    { "kind": "weaponSpawn", "at": [-8, 1.5, 0], "weapon": "fixture-blaster" },
+    { "kind": "spinnerHazard", "at": [0, 1.5, 10], "radius": 4, "count": 3, "period": 3 },
+    { "kind": "label", "at": [0, 4, 0], "text": "Fixture", "scale": 1, "color": "#ffffff" },
+    { "kind": "light", "at": [0, 5, 0], "color": "#fff3c4", "intensity": 1.2, "range": 20 },
+    { "kind": "vehicle", "at": [10, 1, 0], "vehicle": "car", "speed": 24, "color": "#e74c3c" },
+    { "kind": "gravityZone", "at": [-10, 2, 0], "size": [4, 4, 4], "gravity": 0.35, "color": "#8a5cff" },
+    { "kind": "ladder", "at": [12, 2.5, 4], "size": [1.4, 5, 0.25], "color": "#c89c62", "rotY": 1.57 },
+    { "kind": "button", "id": "open-button", "at": [-12, 0.8, 4], "size": [1.6, 0.2, 1.6], "color": "#ffd166" },
+    { "kind": "door", "id": "fixture-door", "at": [-12, 1.5, 6], "size": [2, 3, 0.5], "color": "#8a5a2b", "material": "wood" },
+    { "kind": "mover", "id": "fixture-mover", "at": [0, 2, 12], "size": [3, 0.5, 3], "by": [6, 0, 0], "period": 3, "color": "#9aa0a6", "material": "stone" },
+    { "kind": "portal", "at": [0, 1.6, -12], "target": "home", "label": "Home", "size": [2.6, 3.2, 0.4], "color": "#8a5cff" }
+  ],
+  "rules": [
+    {
+      "when": { "type": "start" },
+      "do": [{ "type": "toast", "text": "Fixture started" }],
+      "once": true
+    },
+    {
+      "when": { "type": "touch", "part": "open-button" },
+      "do": [{ "type": "openDoor", "part": "fixture-door" }]
+    }
+  ],
+  "levels": [
+    {
+      "meta": { "name": "Fixture Level 2" },
+      "parts": [
+        { "kind": "part", "at": [0, 0, 0], "size": [8, 1, 8], "material": "stone" }
+      ]
+    }
+  ],
+  "studio": {
+    "schema": 1,
+    "mode": "custom",
+    "settings": {},
+    "scriptManaged": false
+  }
+}

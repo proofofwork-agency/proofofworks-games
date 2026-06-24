@@ -66,7 +66,7 @@ export function createBuildModeSystem(deps: {
   }
 
   return {
-    id: 'boxcade:buildmode',
+    id: 'blobcade:buildmode',
     active,
 
     update(_ctx: GameContext, _dt: number) {

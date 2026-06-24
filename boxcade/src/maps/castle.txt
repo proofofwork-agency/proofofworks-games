@@ -1,5 +1,5 @@
 // ============================================================
-//  CASTLE RUN — a Boxcade level drawn entirely in text.
+//  CASTLE RUN — a Blobcade level drawn entirely in text.
 //  Edit this file and save: the game hot-reloads instantly.
 //
 //  # stone  G grass  O planks  X brick  I ice  N glow

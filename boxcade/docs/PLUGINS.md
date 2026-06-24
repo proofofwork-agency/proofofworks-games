@@ -1,11 +1,16 @@
-# Boxcade plugins — extend the platform without forking it
+# Blobcade plugins — extend the platform without forking it
 
-Boxcade has no separate "plugin loader". The plugin API **is** the seam the
+Blobcade has no separate "plugin loader". The plugin API **is** the seam the
 engine already exposes: registries for content, the event bus for behavior,
 GameSystems for lifecycle, and GameServices for platform features. A plugin
 is just a module that registers things — import it for its side effects (or
 call an exported `install()`), and every game in the session can use what it
 brought.
+
+That means today's plugins are **trusted code modules or GameDoc fragments**,
+not installable marketplace packages. There is no `PluginManifest`, package
+catalog, enable/disable lifecycle, permission prompt, dependency resolver, or
+untrusted-code sandbox for plugins yet; those belong to the roadmap.
 
 This is deliberate (see ARCHITECTURE.md): plugins ride the same extension
 points first-party content uses, so there is no second-class API to fall
@@ -104,12 +109,12 @@ as **GameDoc fragments** (template docs), not code.
 - `chat: false` hides and disables in-game chat.
 - `leaderboard: false` stops best-time submission for published games.
 - `store: StoreItemDef[]` (≤ 8) sells per-game cosmetic **recolors** for
-  Bolts. Purchases persist per game (`boxcade.store.<gameId>`), the global
+  Blobcash. Purchases persist per game (`blobcade.store.<gameId>`), the global
   wallet pays, and on published games the server credits the creator 30%
   (`POST /api/games/:id/store-credit`, validated against the published doc,
-  rate-limited). Everything stays in the closed Bolts loop — no real money.
+  rate-limited). Everything stays in the closed Blobcash loop — no real money.
 
-## Shipping plugins as a package — boundary audit (W4-4, packaging deferred)
+## Shipping plugins as a package — boundary audit (packaging deferred)
 
 Current `sdk/` import surface (audited 2026-06-10):
 
@@ -120,9 +125,11 @@ Current `sdk/` import surface (audited 2026-06-10):
 - `sdk/gamedoc.ts` → engine/combat (WeaponDef type), sdk/rules
 - `sdk/codec.ts` → no engine imports
 
-Verdict: a future `boxcade-sdk` npm package must ship `sdk/` **plus** the
+Verdict: a future `blobcade-sdk` npm package must ship `sdk/` **plus** the
 six leaf engine modules above (math, events, world, combat, audio, sky) or
-split those into `boxcade-core`. No `runtime/` or DOM coupling leaks into
+split those into `blobcade-core`. No `runtime/` or DOM coupling leaks into
 `sdk/` except `codec.ts`'s use of `CompressionStream` (web standard, fine)
 and `world.ts`/`combat.ts`'s three.js dependency (peer dep). Blockers to
-publishing: none architectural; deferred until the human wants the npm name.
+publishing as a real package are product and tooling work rather than the
+import graph alone: package metadata, build outputs, compatibility policy,
+tests, docs, and a loader/installation story still need to exist.

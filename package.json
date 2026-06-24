@@ -6,10 +6,9 @@
     "*"
   ],
   "scripts": {
-    "boxcade:dev": "npm --workspace boxcade run dev",
-    "boxcade:client": "npm --workspace boxcade run client",
-    "boxcade:test": "npm --workspace boxcade test",
-    "boxcade:build": "npm --workspace boxcade run build"
+    "blobcade:dev": "npm --workspace blobcade run dev",
+    "blobcade:client": "npm --workspace blobcade run client",
+    "blobcade:test": "npm --workspace blobcade test",
+    "blobcade:build": "npm --workspace blobcade run build"
   }
 }
-

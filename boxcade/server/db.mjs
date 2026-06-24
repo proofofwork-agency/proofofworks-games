@@ -1,4 +1,4 @@
-// Boxcade publish DB — node:sqlite (built into Node ≥ 22.13, zero deps).
+// Blobcade publish DB — node:sqlite (built into Node ≥ 22.13, zero deps).
 // One file next to the server; gitignored. Games are GameDoc JSON blobs with
 // counters; creators keep edit rights via a hashed edit token (no accounts).
 
@@ -7,7 +7,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
-const DB_PATH = process.env.BOXCADE_DB ?? path.join(path.dirname(fileURLToPath(import.meta.url)), 'boxcade.db')
+const DB_PATH = process.env.BOXCADE_DB ?? path.join(path.dirname(fileURLToPath(import.meta.url)), 'blobcade.db')
 
 const db = new DatabaseSync(DB_PATH)
 db.exec(`
@@ -145,16 +145,16 @@ export function bumpPlay(id) {
   accrue(id, 2) // the creator cut: every counted play pays the maker
 }
 
-/** creator earnings (Bolts) — accrue on plays/likes, claim with the edit token */
-function accrue(gameId, bolts) {
+/** creator earnings (Blobcash) — accrue on plays/likes, claim with the edit token */
+function accrue(gameId, blobcash) {
   db.prepare(
     `INSERT INTO earnings (game_id, accrued) VALUES (?, ?)
      ON CONFLICT(game_id) DO UPDATE SET accrued = accrued + excluded.accrued`,
-  ).run(gameId, bolts)
+  ).run(gameId, blobcash)
 }
 
-export function creditStoreEarnings(gameId, bolts) {
-  accrue(gameId, bolts)
+export function creditStoreEarnings(gameId, blobcash) {
+  accrue(gameId, blobcash)
 }
 
 export function getEarnings(id, token) {

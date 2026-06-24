@@ -1,10 +1,10 @@
 {
-  "name": "boxcade",
+  "name": "blobcade",
   "private": true,
   "version": "0.2.0",
   "type": "module",
   "license": "MIT",
-  "description": "Boxcade — a free browser game platform & engine: blocky multiplayer worlds, a tiny game SDK, and AAA-style lighting.",
+  "description": "Blobcade — a free browser game platform & engine: blocky multiplayer worlds, a tiny game SDK, and AAA-style lighting.",
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "client": "vite",

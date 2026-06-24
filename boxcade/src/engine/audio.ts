@@ -1,4 +1,4 @@
-// Boxcade audio: every sound is synthesized with WebAudio at runtime.
+// Blobcade audio: every sound is synthesized with WebAudio at runtime.
 // Zero asset files — jump chirps, coin dings, fanfares and block crunches
 // are all tiny oscillator/noise recipes.
 

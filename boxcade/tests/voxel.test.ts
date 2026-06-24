@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import * as THREE from 'three'
 import { VoxelWorld, GRASS, STONE, AIR, WATER } from '../src/engine/voxel'
 
 describe('VoxelWorld serialize → deserialize round-trip', () => {
@@ -53,12 +54,22 @@ describe('VoxelWorld.deserialize rejects bad input', () => {
   valid.set(1, 1, 1, STONE)
   const goodObj = JSON.parse(valid.serialize()) as Record<string, unknown>
 
+  it('accepts the legacy boxcade voxel-world marker', () => {
+    const legacy = { ...goodObj, boxcade: 'voxel-world/v1' }
+    delete legacy.blobcade
+    const restored = VoxelWorld.deserialize(JSON.stringify(legacy))
+    expect(restored.sx).toBe(valid.sx)
+    expect(restored.sy).toBe(valid.sy)
+    expect(restored.sz).toBe(valid.sz)
+    expect(restored.get(1, 1, 1)).toBe(STONE)
+  })
+
   it('rejects invalid JSON', () => {
     expect(() => VoxelWorld.deserialize('{ not json')).toThrow(/not valid JSON/i)
   })
 
   it('rejects a wrong / missing marker', () => {
-    expect(() => VoxelWorld.deserialize(JSON.stringify({ ...goodObj, boxcade: 'nope' })))
+    expect(() => VoxelWorld.deserialize(JSON.stringify({ ...goodObj, blobcade: 'nope' })))
       .toThrow(/voxel-world\/v1/i)
     expect(() => VoxelWorld.deserialize(JSON.stringify({ size: [8, 8, 8], rle: [1, 0] })))
       .toThrow(/voxel-world\/v1/i)
@@ -89,7 +100,7 @@ describe('VoxelWorld.deserialize rejects bad input', () => {
   })
 
   it('every friendly message is prefixed with "voxel world:"', () => {
-    for (const bad of ['{ not json', JSON.stringify({ boxcade: 'x' })]) {
+    for (const bad of ['{ not json', JSON.stringify({ blobcade: 'x' })]) {
       try {
         VoxelWorld.deserialize(bad)
         throw new Error('expected throw')
@@ -138,5 +149,34 @@ describe('VoxelWorld set / get / surfaceY', () => {
     // still no solid -> falls through to seaLevel + 1
     expect(w.surfaceY(5, 5)).toBe(5)
     expect(w.isWater(5, 0, 5)).toBe(true)
+  })
+
+  it('disposes live chunk geometry and owned materials idempotently', () => {
+    const w = new VoxelWorld(8, 8, 8, 4)
+    w.set(1, 1, 1, STONE)
+    w.set(2, 1, 1, WATER)
+    w.buildAll()
+
+    let geoDisposed = 0
+    let matDisposed = 0
+    const materials = new Set<THREE.Material>()
+    for (const child of w.group.children) {
+      const mesh = child as THREE.Mesh
+      mesh.geometry.addEventListener('dispose', () => { geoDisposed++ })
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (materials.has(mat)) continue
+        materials.add(mat)
+        mat.addEventListener('dispose', () => { matDisposed++ })
+      }
+    }
+
+    expect(w.group.children.length).toBeGreaterThan(0)
+    w.dispose()
+    w.dispose()
+
+    expect(w.group.children).toHaveLength(0)
+    expect(w.waterMeshes).toHaveLength(0)
+    expect(geoDisposed).toBeGreaterThan(0)
+    expect(matDisposed).toBe(materials.size)
   })
 })

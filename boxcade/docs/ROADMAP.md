@@ -1,13 +1,38 @@
-# Boxcade Platform Parity Roadmap
+# Blobcade Platform Parity Roadmap
 
 **Date:** 2026-06-10
-**Status:** Architecture and execution roadmap for closing the gap between the current Boxcade stack and a top-tier user-generated 3D game creation platform.
+**Status:** Architecture and execution roadmap for closing the gap between the current Blobcade stack and a top-tier user-generated 3D game creation platform.
 
-This document is not a marketing plan. It is a build plan for turning Boxcade from a playable browser-first creation loop into a durable platform: authenticated creators, versioned games, trusted publishing, moderated discovery, authoritative sessions, server-owned economy, sandboxed creator APIs, analytics, collaboration, and operational discipline.
+This document is not a marketing plan. It is a build plan for turning Blobcade from a playable browser-first creation loop into a durable platform: authenticated creators, versioned games, trusted publishing, moderated discovery, authoritative sessions, server-owned economy, sandboxed creator APIs, analytics, collaboration, and operational discipline.
+
+This is a **platform parity** roadmap, not a plan to become a general-purpose
+engine like Unity, Unreal or Godot. Blobcade remains a browser-first, GameDoc-
+centered, blocky 3D game platform; the roadmap hardens that platform instead
+of broadening it into every genre, asset pipeline, runtime target and editor
+workflow.
+
+Blobcade can become a Roblox-style niche competitor, but not a direct Roblox
+replacement soon. The credible wedge is smaller and sharper: browser-first,
+instant-play, blocky 3D games with very low-friction creation. The near-term
+competition is Roblox Studio friction, not Roblox's full creator economy,
+social graph, avatar marketplace, moderation operation, and network effects.
+
+The product bet is that a creator can generate or remix a simple world, press
+play, publish or share a link, and get friends into the browser faster than
+they can set up a traditional studio workflow. That means the roadmap should
+prefer Studio publishing, templates, multiplayer trust, moderation, analytics,
+and economy ledgers over broad engine surface area.
+
+Initial genre lanes should stay intentionally narrow:
+
+- Obbies and movement challenge maps.
+- Arena shooters and CTF games.
+- Voxel islands, sandboxes, and survival-lite worlds.
+- Battle-royale-lite games sized for browser performance and simple sessions.
 
 ## North Star and Principles
 
-Boxcade should let a creator sign in, build a 3D game in Studio, test it, publish it through review, manage versions and earnings, invite collaborators, and watch players join stable multiplayer sessions. Players should be able to discover games, trust the content state, play with friends, earn and spend through server-owned ledgers, report abuse, and keep progress across devices.
+Blobcade should let a creator sign in, build a 3D game in Studio, test it, publish it through review, manage versions and earnings, invite collaborators, and watch players join stable multiplayer sessions. Players should be able to discover games, trust the content state, play with friends, earn and spend through server-owned ledgers, report abuse, and keep progress across devices.
 
 Non-negotiable principles:
 
@@ -20,21 +45,26 @@ Non-negotiable principles:
 - **Backwards compatibility is explicit.** Existing share links, published games, local drafts, and current first-party games must either migrate cleanly or fail with a clear compatibility message.
 - **Safety is product infrastructure.** Reporting, blocking, maturity gates, rate limits, deduplication, review queues, admin audit, and abuse response are core systems, not late polish.
 - **Browser-first does not mean single-device.** Identity, persistence, mobile input, accessibility, and low-end performance must be treated as platform requirements.
+- **The fastest playable creation loop wins.** The priority workflow is create, test, publish, share, and remix in minutes.
+- **Own a genre wedge before broad UGC.** Obbies, arena shooters, voxel islands, CTF, and battle-royale-lite should have templates, preflight checks, and discovery lanes before the platform chases every genre.
+- **Economy follows trust.** Blobcash, cosmetics, templates, and internal creator earnings can grow before real-money payout, but payout is blocked until fraud controls, moderation, accounting, tax/legal review, and audit are mature.
+- **Do not clone Roblox feature-for-feature.** Roblox is the benchmark for creator-platform completeness, not the first product surface to copy.
 
 ## Current State Snapshot
 
 ### Already Strong
 
-Boxcade already has the right foundation for a data-driven creation platform:
+Blobcade already has the right foundation for a data-driven creation platform:
 
 - **GameDoc exists** as the primary authored game shape.
 - **Studio exists** with a unified Floor Plan, element palette, local drafts, and a playable creator loop.
 - **Gameplay vocabulary is growing:** Water, Ladder, vehicles, prefabs, and interactive world elements are already available to creators.
 - **Sharing and publishing exist:** local drafts, share links, and a published games API provide an early creator-to-player path.
-- **Community surfaces exist:** discovery, likes, reports, leaderboards, and room codes already establish the outline of a platform loop.
-- **Backend exists:** SQLite, WebSocket rooms, generic event relay, host election, interest filtering, simple PvP arbitration, published game storage, and one-process local operations are already in place.
-- **Economy exists locally:** Bolts, per-game store concepts, and per-game earnings establish the shape of creator monetization.
+- **Community surfaces exist:** discovery, likes, reports, leaderboards, room codes, external embeds, and creator earnings establish the outline of a platform loop.
+- **Backend exists:** SQLite, WebSocket rooms, generic event relay, host election, interest filtering, simple PvP arbitration, published game storage, embed validation, and one-process local operations are already in place.
+- **Economy exists locally:** Blobcash, per-game store concepts, and per-game earnings establish the shape of creator monetization.
 - **Plugin registries exist:** materials, behaviors, weapons, sky presets, and textmap tiles are registered through local extension points.
+- **Touch controls exist for play:** movement/look/jump/fire/zoom/vehicle controls are wired for touch devices, but real-device QA and broader mobile polish are still weak.
 
 These are meaningful assets. The platform should not be restarted. It should be hardened, versioned, and given authority boundaries.
 
@@ -45,12 +75,12 @@ The gaps are structural:
 - **No real identity spine.** Creator ownership is anonymous-token based. Likes, reports, and plays depend on localStorage device keys. This breaks cross-device use, abuse controls, entitlement checks, payouts, and collaboration.
 - **Publishing is not first-class in Studio.** Publish, republish, moderation, analytics, and earnings are mostly portal workflows. Studio lacks a serious publish drawer, version history, source lineage, remix handling, and strong preflight validation.
 - **Plugin system is registry-only.** There is no `PluginManifest`, loader lifecycle, install/enable/disable flow, package catalog, marketplace, permission model, sandbox boundary, or broad registry introspection. `behaviorTypes` is the only notable introspection surface.
-- **Runtime authority is too client-heavy.** Transforms and events are client-authoritative. PvP is plausibility-only. Hosted session state lives in host/client memory. Economy is locally mutable.
+- **Runtime authority is too client-heavy.** Transforms and events are client-authoritative. PvP has server-side plausibility caps and HP verdicts, but not authoritative hit simulation. Hosted session state lives in host/client memory. Economy is locally mutable.
 - **Operations are local and fragile.** One process handles local ops. The WebSocket endpoint is hardcoded. Health checks, metrics, backups, migrations, admin audit, and status reporting are missing.
 - **Content governance is incomplete.** Reporting exists, but robust moderation queues, review states, blocking, maturity gates, asset trust, appeal logs, and admin audit are not platform-grade.
 - **Analytics are not creator-grade.** Discovery metrics, retention, conversion, device breakdown, session quality, earnings attribution, moderation outcomes, and funnel analysis need durable event pipelines.
 - **Testing is narrow.** Studio workflows, publish gates, plugin compatibility, moderation, multiplayer authority, economy ledgers, and migrations need acceptance-level coverage.
-- **Docs drift.** The current architecture, plugin surface, SDK claims, and roadmap do not consistently match implementation. The SDK package is not a real distributable platform SDK yet.
+- **Docs drift remains a release risk.** The architecture, GameDoc, plugin surface, SDK claims, README ceilings, and roadmap need implementation-backed checks. The SDK package is not a real distributable platform SDK yet.
 
 ## Target Architecture
 
@@ -89,6 +119,7 @@ Registries become package-backed platform APIs.
 
 Studio becomes the control plane for creation.
 
+- A creator can start from an obby, arena, voxel island, CTF, or battle-royale-lite template and reach a playable browser session in minutes.
 - First-class publish drawer with validation, version notes, visibility, target audience, maturity, dependencies, monetization, permissions, and review status.
 - Remix workflow with source attribution, license terms, lineage, and source-version locking.
 - Version history with diff summary, rollback, compare, and restore-to-draft.
@@ -110,6 +141,7 @@ Publishing becomes a state machine.
 
 Discovery is ranking plus trust.
 
+- Genre lanes make the wedge visible: obbies, arenas, voxel islands, CTF, and battle-royale-lite get explicit surfaces before a broad anything-goes catalog.
 - Catalog ranking uses plays, retention, likes, reports, freshness, social graph signals, moderation status, quality gates, and device compatibility.
 - Likes, reports, follows, blocks, comments, and favorites are account-backed with abuse controls.
 - Leaderboards are server-owned and scoped by game version where needed.
@@ -129,11 +161,12 @@ Runtime becomes session-orchestrated.
 
 Economy moves from local mutation to server ledger.
 
-- Bolts balances are ledger entries, not local counters.
+- Blobcash balances are ledger entries, not local counters.
 - Earnings are attributable to source events: playtime, purchases, tips, premium rewards, creator cuts, and refunds.
 - Per-game stores use server-owned products, prices, inventory, entitlements, receipts, and fraud checks.
-- Marketplace supports packages, cosmetics, templates, game passes, and creator revenue share.
+- Marketplace starts with packages, cosmetics, templates, starter worlds, and game passes before broad creator asset trading.
 - Payout and financial compliance can be deferred, but internal accounting must be correct before real-money conversion is considered.
+- Real-money creator payout is out of scope until server ledger, fraud review, moderation, accounting, tax/legal review, appeals, and audit controls are proven.
 
 ### Trust and Safety
 
@@ -163,6 +196,22 @@ Mobile and accessibility are baseline platform support.
 - Accessibility coverage includes keyboard navigation, visible focus, reduced motion, color contrast, captions/labels, scalable text, and remappable controls where practical.
 - Performance budgets must include low-end mobile browsers and integrated GPUs.
 
+### Native Tauri Client
+
+The native client is a distribution shell for the same Blobcade platform, not a
+fork of the engine or a replacement for browser-first play.
+
+- Tauri wraps the existing Vite, TypeScript, and Three.js app for desktop,
+  tablet, and mobile targets.
+- Built-in games, local drafts, and GameDoc share links should remain playable
+  when the backend is unavailable.
+- Discovery, publishing, leaderboards, reports, likes, earnings, and
+  multiplayer use a configured Blobcade backend instead of hardcoded localhost.
+- v1 does not bundle the Node server, run a local authoritative multiplayer
+  host, or add app-store payout flows.
+- Native permissions stay minimal until a specific feature, such as GameDoc
+  import/export, requires a narrowly scoped Tauri capability.
+
 ### Portability and Governance
 
 Creators need confidence that their work is not trapped.
@@ -182,12 +231,14 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 
 | ID | Task | Dependencies | File/module areas | Acceptance gate |
 |---|---|---|---|---|
-| ARCH-001 | Audit current shipped capabilities against architecture docs and tests. | None | `docs/`, `src/sdk/`, `src/studio/`, `src/runtime/`, `server/`, `tests/` | A checked-in audit table lists implemented, partial, missing, and obsolete claims. |
+| ARCH-001 | Audit current shipped capabilities against architecture docs and tests. | None | `docs/`, `src/sdk/`, `src/studio/`, `src/runtime/`, `server/`, `tests/` | A checked-in audit table lists implemented, partial, missing, and obsolete claims; README/GAMEDOC wording no longer repeats stale multiplayer, touch-control, or schema-version claims after code moves on. |
 | ARCH-002 | Define platform state model for draft, private, submitted, approved, published, hidden, archived, and deleted content. | ARCH-001 | `docs/ARCHITECTURE.md`, `docs/GAMEDOC.md`, server schema docs | State transitions are documented with required actor, validation, audit, and rollback behavior. |
-| ARCH-003 | Freeze GameDoc compatibility policy and migration contract. | ARCH-001 | `src/sdk/gamedoc*`, `tests/fixtures/`, `docs/GAMEDOC.md` | Fixtures cover current and previous versions; unknown future versions fail clearly. |
+| ARCH-003 | Freeze GameDoc compatibility policy and migration contract. | ARCH-001 | `src/sdk/gamedoc*`, `tests/fixtures/`, `docs/GAMEDOC.md` | Fixtures cover current and previous versions; unknown future versions fail clearly; docs list every exported part kind, rule trigger/action, reserved prefix, and format limit. |
 | ARCH-004 | Add acceptance test matrix for Studio, publish, multiplayer, economy, plugins, moderation, and discovery. | ARCH-001 | `tests/`, Playwright or browser smoke harness | CI or documented local gates cover the main creator and player loops. |
-| ARCH-005 | Replace drifting plugin docs with an implementation-backed plugin audit. | ARCH-001 | `docs/PLUGINS.md`, `src/sdk/`, registry modules | Docs state exactly which registries exist and which package features do not exist yet. |
+| ARCH-005 | Replace drifting plugin docs with an implementation-backed plugin audit. | ARCH-001 | `docs/PLUGINS.md`, `src/sdk/`, registry modules | Docs state exactly which registries exist, which APIs are trusted-code only, and which package features do not exist yet. |
 | ARCH-006 | Establish module ownership boundaries for platform subsystems. | ARCH-001 | `docs/ARCHITECTURE.md` | New work can be assigned to identity, publishing, Studio, runtime, economy, trust, analytics, or ops without ambiguity. |
+| ARCH-007 | Lock competitive positioning and wedge non-goals into roadmap docs. | ARCH-001 | `docs/ROADMAP.md`, product docs | Roadmap states that Blobcade targets a browser-first Roblox-style niche, competes with Studio friction first, and does not chase broad Roblox parity or general-purpose engine scope. |
+| WEDGE-001 | Define first supported genre lanes and template requirements. | ARCH-007 | `docs/ROADMAP.md`, Studio template specs, GameDoc examples | Obby, arena shooter, voxel island/sandbox, CTF, and battle-royale-lite each have a template checklist, required runtime capabilities, preflight rules, and discovery category. |
 
 ### Phase 1: Accounts, Identity, and Ownership
 
@@ -216,6 +267,9 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 | STUDIO-004 | Add remix/source lineage fields and workflow. | STUDIO-002 | `src/sdk/gamedoc*`, `server/games*`, `src/studio/` | Remixed games record source game, source version, creator, license, and attribution. |
 | STUDIO-005 | Strengthen preflight validation for dependencies, performance budgets, missing assets, unsafe rules, economy hooks, and multiplayer limits. | STUDIO-001 | `src/sdk/validation*`, `src/studio/`, `server/validation*` | Server and Studio return matching validation errors for the same GameDoc. |
 | STUDIO-006 | Expand Studio tests around placement, Floor Plan, publish drawer, version history, remix, and validation failures. | STUDIO-001, STUDIO-002, STUDIO-003, STUDIO-004, STUDIO-005 | `tests/`, browser smoke harness | Tests cover narrow editor regressions and the complete publish workflow. |
+| STUDIO-007 | Build the one-minute playable game funnel for wedge templates. | WEDGE-001, STUDIO-001 | `src/studio/`, `src/sdk/gamedoc*`, template fixtures | A new creator can choose a wedge template, edit one meaningful setting, test-play, and reach a shareable game without leaving Studio. |
+| STUDIO-008 | Add instant share and publish checklist for thumbnails, visibility, remix rights, and genre lane. | STUDIO-001, STUDIO-007 | `src/studio/`, `server/games*`, `server/artifacts*` | A game cannot publish publicly without thumbnail, visibility, remix setting, maturity setting, and wedge/category metadata. |
+| STUDIO-009 | Close the TypeScript→editable-world round-trip gap. Today the Studio exports a GameDoc to TypeScript (`gameDocToTypeScript`) one-way, so a game that graduates to code loses visual editability — imperative `build()` cannot be reverse-engineered into static `parts[]`. Ship in two steps: (a) **world-capture escape hatch** — a runtime action snapshots the built `PartsWorld` into a GameDoc draft (positions/sizes/colors/materials/behaviors) and opens it in the Studio, working for ANY game (code or doc); (b) **live-doc world reference** — a TS game declares its world as a Studio-editable doc reference and hot-reloads it, keeping a true two-way visual round-trip while code owns only logic. Capture is a one-way fork (code logic like `onTick`/combat is not carried; re-merge via rules/script); the live-doc reference is the proper long-term model but constrains geometry to doc-representable data (no programmatic placement). | STUDIO-001, ARCH-003 | `engine/world.ts` (PartsWorld→doc serialize), `src/runtime/runtime.ts` (capture + entry point), `src/studio/studio.ts` (open captured doc), `src/sdk/gamedoc*`, `src/main.ts` | (a) From any running game (doc or code), a creator can "Open world in Studio" and edit the captured geometry; (b) a TS game whose world is a doc reference stays visually editable in Studio across edits with hot reload, and a test covers the round-trip for a doc-representable game. |
 
 ### Phase 3: Plugin and Package Manifest, Loader, and Registry Introspection
 
@@ -246,6 +300,7 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 | CONTENT-005 | Add maturity gates and catalog filters. | CONTENT-003 | `server/games*`, `src/portal*`, `src/studio/` | Content can be filtered by maturity state before discovery ranking. |
 | CONTENT-006 | Add blocking primitives for users, creators, and game interactions. | ID-002 | `server/social*`, `src/portal*`, `src/runtime/` | Blocked users are filtered from direct social surfaces and restricted interactions. |
 | CONTENT-007 | Replace local report implementation with account/device-backed reports and duplicate detection. | ID-004, CONTENT-003 | `server/moderation*`, client report UI | Report spam is rate-limited, deduplicated, and still preserves evidence. |
+| CONTENT-008 | Add safe remix and template review policy for wedge content. | STUDIO-004, WEDGE-001, CONTENT-003 | `server/moderation*`, `src/studio/`, policy docs | Remixable templates and public remixes carry source attribution, review state, abuse reporting, and takedown handling. |
 
 ### Phase 5: Authoritative Multiplayer and Session Orchestration
 
@@ -262,21 +317,24 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 | NET-006 | Add server checkpoints for session-scoped mutable world state. | NET-003, NET-004 | `server/sessions*`, runtime systems | Late joiners receive consistent door, switch, score, and key shared state. |
 | NET-007 | Add load, latency, packet, disconnect, and room saturation metrics. | NET-002 | metrics module, ops dashboard/API | Active rooms and WebSocket health are observable. |
 | NET-008 | Add multiplayer acceptance tests with two or more browser clients. | NET-002, NET-003, NET-004, NET-005, NET-006 | browser tests, server test harness | Tests cover join, room code, host leave, shared event, and PvP arbitration. |
+| NET-009 | Add trustworthy multiplayer gates for wedge genres. | NET-004, NET-005, WEDGE-001 | `server/sessions*`, `server/combat*`, runtime systems, tests | Arena, CTF, and battle-royale-lite templates cannot be promoted as public wedge templates until damage, scores, inventory, rewards, and match results are server-validated. |
 
 ### Phase 6: Server Ledger Economy and Marketplace
 
-**Goal:** make Bolts, stores, earnings, and entitlements server-owned.
+**Goal:** make Blobcash, stores, earnings, and entitlements server-owned.
 **Phase gate:** creator earnings and player purchases are backed by immutable ledger entries and cannot be forged by client localStorage.
 
 | ID | Task | Dependencies | File/module areas | Acceptance gate |
 |---|---|---|---|---|
 | ECO-001 | Design ledger schema: accounts, balances, entries, source event, idempotency key, reversal, and audit. | ID-002 | DB migrations, `server/economy*`, docs | Balances are derived from ledger entries or reconciled snapshots. |
-| ECO-002 | Replace local mutable Bolts for authenticated users with server balance sync. | ECO-001 | `src/engine/economy*`, `server/economy*` | Editing localStorage does not change server balance. |
+| ECO-002 | Replace local mutable Blobcash for authenticated users with server balance sync. | ECO-001 | `src/engine/economy*`, `server/economy*` | Editing localStorage does not change server balance. |
 | ECO-003 | Add earn-event validation and caps for gameplay rewards. | ECO-002, NET-004 | `server/economy*`, runtime event hooks | Reward spam is idempotent and rate-limited by source. |
 | ECO-004 | Implement per-game store products, prices, inventory, and receipts. | ECO-002, STUDIO-001 | `server/store*`, `src/studio/`, `src/runtime/` | Purchases create receipts and entitlements. |
 | ECO-005 | Add creator earnings attribution and payout ledger entries. | ECO-001, CONTENT-001 | `server/economy*`, analytics events | Creator dashboard reconciles plays, purchases, and earnings. |
 | ECO-006 | Add package/cosmetic marketplace catalog with moderation state. | PLUGIN-006, CONTENT-003 | `server/marketplace*`, `src/portal*`, `src/studio/` | Only approved catalog items can be sold or installed publicly. |
 | ECO-007 | Add economy abuse review tooling. | ECO-003, ECO-005 | admin API/UI, audit logs | Admin can inspect suspicious ledger activity and reverse entries. |
+| ECO-008 | Stage the creator economy before real-money payout. | ECO-001, ECO-006, CONTENT-004 | `server/economy*`, `server/marketplace*`, policy docs | Economy roadmap explicitly progresses from Blobcash and cosmetics to templates and internal earnings before any payout integration. |
+| ECO-009 | Add payout readiness gates. | ECO-007, OPS-004, GOV-001 | admin tools, audit logs, policy docs | Real-money payout remains disabled until fraud review, moderation, accounting reconciliation, appeals, tax/legal review, and audit exports are complete. |
 
 ### Phase 7: Sandboxed Scripting and Advanced Creator APIs
 
@@ -304,6 +362,7 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 | ANALYTICS-002 | Implement analytics ingestion and aggregation. | ANALYTICS-001 | `server/analytics*`, DB migrations or event store | Dashboards can query daily creator/game metrics. |
 | ANALYTICS-003 | Add creator analytics panel in Studio and portal. | ANALYTICS-002, STUDIO-001 | `src/studio/`, `src/portal*` | Creator sees plays, retention, likes, reports, earnings, devices, and validation failures. |
 | DISC-001 | Replace simple discovery sorting with ranking inputs and trust filters. | ANALYTICS-002, CONTENT-005 | `server/discovery*`, `src/portal*` | Hidden/rejected/maturity-filtered content cannot rank publicly. |
+| DISC-002 | Add wedge genre discovery lanes and remix surfaces. | DISC-001, WEDGE-001, STUDIO-004 | `server/discovery*`, `src/portal*`, `src/studio/` | Obbies, arenas, voxel islands, CTF, and battle-royale-lite have explicit browse, play-now, and remix entry points backed by trust filters. |
 | SOCIAL-001 | Add favorites, follows, blocks, and friend join primitives. | ID-002, CONTENT-006 | `server/social*`, `src/portal*`, runtime UI | Social actions are account-backed and rate-limited. |
 | SOCIAL-002 | Add comments or lightweight creator updates only after moderation controls exist. | SOCIAL-001, CONTENT-004 | `server/social*`, moderation UI | User-generated text is reportable, block-aware, and admin-audited. |
 | TEAM-001 | Add team management UI and role-aware Studio actions. | ID-006, STUDIO-001 | `src/studio/`, `src/portal*`, `server/teams*` | Editors can edit drafts but cannot change payouts or publish without permission. |
@@ -311,7 +370,7 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 
 ### Phase 9: Mobile, Performance, and Accessibility
 
-**Goal:** make Boxcade playable and creatable across common devices without excluding keyboard, touch, or assistive users.
+**Goal:** make Blobcade playable and creatable across common devices without excluding keyboard, touch, or assistive users.
 **Phase gate:** core play, Studio basics, publishing, and discovery pass mobile, keyboard, and performance budgets.
 
 | ID | Task | Dependencies | File/module areas | Acceptance gate |
@@ -321,12 +380,13 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 | PERF-001 | Define performance budgets for draw calls, parts, scripts, package count, network rate, memory, and load time. | ARCH-004 | docs, validation modules | Publish preflight reports budget usage and failures. |
 | PERF-002 | Add asset/runtime profiling and low-end quality modes. | PERF-001 | renderer/runtime modules, Studio preview | Player can switch quality mode; Studio warns on expensive worlds. |
 | PERF-003 | Add interest management and LOD acceptance tests at target room sizes. | NET-007, PERF-001 | server sessions, runtime renderer | Large rooms stay within latency and frame budget targets. |
+| PERF-004 | Add instant-play browser budgets for wedge templates. | WEDGE-001, PERF-001 | validation modules, template fixtures, browser tests | First-party wedge templates meet documented load-time and frame-budget targets on low-end browser profiles. |
 | A11Y-001 | Add keyboard navigation, focus states, labels, contrast pass, reduced motion, and scalable text audit. | STUDIO-001 | `src/`, CSS, UI components | Main portal, Studio publish drawer, and runtime menus pass documented checks. |
 | A11Y-002 | Add remappable controls and readable HUD scaling. | MOBILE-001, A11Y-001 | input/HUD modules | Players can adjust controls and HUD scale without breaking layout. |
 
 ### Phase 10: Operations, Governance, Portability, and Scale
 
-**Goal:** run Boxcade as a durable service with backups, migrations, audit, incident response, export, and clear platform policy.
+**Goal:** run Blobcade as a durable service with backups, migrations, audit, incident response, export, and clear platform policy.
 **Phase gate:** the platform can be deployed, monitored, backed up, restored, migrated, audited, and governed without tribal knowledge.
 
 | ID | Task | Dependencies | File/module areas | Acceptance gate |
@@ -339,6 +399,24 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 | GOV-001 | Publish platform policy docs: creator terms, package trust levels, moderation policy, data retention, schema deprecation, and API stability. | CONTENT-004, PLUGIN-006 | `docs/` | Policies are linked from publish and package submission flows. |
 | PORT-001 | Add export/import for GameDoc, versions, dependencies, thumbnails, and metadata. | CONTENT-001, PLUGIN-004 | `src/studio/`, `server/export*` | Creator can export an owned game and re-import it with dependency validation. |
 | PORT-002 | Add public status and incident workflow. | OPS-001 | docs, status endpoint | Incidents can be created, updated, and resolved with public status history. |
+
+### Phase 11: Native Tauri Client for Desktop, Tablet, and Mobile
+
+**Goal:** package Blobcade as a native Tauri app without splitting the product from the browser platform.
+**Phase gate:** desktop, tablet, and mobile builds can launch Blobcade, play supported games, preserve local drafts/settings, use configured online services, and degrade clearly when offline.
+
+| ID | Task | Dependencies | File/module areas | Acceptance gate |
+|---|---|---|---|---|
+| CLIENT-001 | Define native client scope and non-goals. | ARCH-007, MOBILE-001 | `docs/ROADMAP.md`, future `docs/TAURI_CLIENT.md` | Docs state that the Tauri app is a native shell for Blobcade, supports offline solo play for local content, uses a remote backend for platform services, and does not bundle a local authoritative server in v1. |
+| CLIENT-002 | Add Tauri 2 scaffold and desktop configuration. | CLIENT-001 | `package.json`, `src-tauri/`, `vite.config.ts` | `npm run tauri:dev` opens the existing Blobcade app in a desktop Tauri window, and `npm run tauri:build` produces a desktop bundle. |
+| CLIENT-003 | Replace hardcoded API and WebSocket endpoints with environment-backed config. | NET-001, CLIENT-002 | `src/api.ts`, `src/engine/network.ts`, config module | Browser dev, Tauri dev, and production native builds can point to local or hosted Blobcade API/WebSocket URLs without source edits; offline fallback still works when services are unreachable. |
+| CLIENT-004 | Harden desktop shell security and WebGL behavior. | CLIENT-002, CLIENT-003 | `src-tauri/tauri.conf.json`, capabilities, app shell CSS/runtime | Portal, Studio, and gameplay render in the WebView with no blank canvas; Tauri capabilities do not grant filesystem, shell, or broad native access by default. |
+| CLIENT-005 | Initialize Android and iOS targets. | CLIENT-002, CLIENT-004, MOBILE-001 | `src-tauri/`, Android/iOS project files, docs | Android emulator/device and iOS simulator/device builds launch to the Blobcade portal and can start at least one built-in game. |
+| CLIENT-006 | Make input and layout reliable across desktop, tablet, and phone. | CLIENT-005, MOBILE-001, MOBILE-002, A11Y-001 | `src/engine/input*`, `src/engine/touch*`, runtime HUD, Studio UI, CSS | Keyboard/mouse works on desktop; touch play works on phones/tablets; Studio either works on the supported tablet/desktop sizes or blocks unsupported small screens clearly. |
+| CLIENT-007 | Verify native persistence and offline/online mode behavior. | CLIENT-003, CLIENT-006 | `src/drafts.ts`, local storage paths, runtime routes, docs | Local drafts, player name, Blobcash, publish tokens, and script approvals survive app restart; built-in games and shared GameDocs play offline; platform services show clear unavailable states. |
+| CLIENT-008 | Add optional native GameDoc import/export behind narrow permissions. | CLIENT-004, PORT-001 | Tauri dialog/filesystem capabilities, Studio import/export UI | File access is disabled unless import/export is enabled; exported/imported files are limited to documented GameDoc formats with clear validation errors. |
+| CLIENT-009 | Add native build scripts and release checks. | CLIENT-002, CLIENT-005 | `package.json`, CI, release docs | Scripts exist for desktop, Android, and iOS dev/build flows; CI or documented local gates run `npm test`, `npm run build`, and supported Tauri build checks. |
+| CLIENT-010 | Run native client device test matrix. | CLIENT-005, CLIENT-006, CLIENT-007, CLIENT-009 | test docs, manual QA checklist, future automation | macOS/Windows/Linux desktop, Android phone/tablet, and iPhone/iPad are checked for portal load, built-in play, shared GameDoc play, local drafts, Studio stance, touch controls, online services, multiplayer connection, offline degradation, and restart persistence. |
 
 ## Risk Register and Task Gates
 
@@ -354,6 +432,13 @@ Each task includes dependencies, acceptance gates, and concrete file or module a
 | One-process local architecture leaks into production | Poor uptime and hard recovery. | Health, migrations, backups, separated workers, environment config. | OPS-001 to OPS-005 |
 | Mobile support is treated as polish | Large part of player base has broken controls. | Mobile controls and performance budgets before scale claims. | MOBILE-001, PERF-001 |
 | Marketplace arrives before accounting | Creator balances and entitlements become untrustworthy. | Ledger and receipt model before public marketplace. | ECO-001 to ECO-006 |
+| Blobcade chases Roblox breadth too early | Core creator loop stays weaker than incumbents and roadmap scope becomes unfinishable. | Compete with Studio friction first and sequence broad social, avatar, and marketplace features behind wedge success. | ARCH-007, WEDGE-001, STUDIO-007 |
+| Genre focus dilutes before one wedge works | Templates, discovery, moderation, and performance budgets become generic and weak. | Ship explicit obby, arena, voxel island, CTF, and battle-royale-lite lanes before expanding. | WEDGE-001, DISC-002, PERF-004 |
+| Creator economy arrives before trust | Fraud, moderation, and accounting failures damage creator confidence. | Keep real-money payout disabled until ledger, abuse tooling, accounting, audit, and policy gates pass. | ECO-008, ECO-009 |
+| Studio friction remains high despite engine progress | Blobcade loses its best competitive angle. | Track publish funnel conversion, template completion time, validation failure rate, and share-link success. | STUDIO-007, ANALYTICS-001 |
+| Visual editability is lost when a game graduates to TypeScript | The Studio exports doc→TS one-way; once geometry becomes imperative code it can't be visually edited again, so creators who outgrow the doc format can no longer iterate on layout visually — a hard ceiling on the "code game" path. | Ship world-capture as a near-term escape hatch and a live-doc world reference as the proper two-way model. | STUDIO-009 |
+| Native client forks the platform | Desktop/mobile apps drift from browser behavior and multiply QA cost. | Treat Tauri as a shell over the same Vite app, keep backend services configured instead of embedded, and run shared browser/native smoke checks. | CLIENT-001 to CLIENT-010 |
+| Mobile app stores force broad native permissions too early | Review, privacy, and security risks grow before product value is proven. | Keep v1 permissions minimal and gate file access behind explicit import/export scope. | CLIENT-004, CLIENT-008 |
 
 General task gates:
 
@@ -370,61 +455,75 @@ General task gates:
 
 ### 30 Days
 
-Focus: make the platform contract honest and stop building on anonymous ownership.
+Focus: make the platform contract honest, define the Roblox-style niche, and stop building on anonymous ownership.
 
 - Complete ARCH-001 through ARCH-006.
+- Complete ARCH-007 and WEDGE-001.
 - Complete ID-001, ID-002, and ID-003.
 - Start ID-004 for server-backed deduplication.
 - Complete STUDIO-001 publish drawer design and validation wiring.
+- Design STUDIO-007 one-minute playable game funnel around obby, arena, voxel island, CTF, and battle-royale-lite templates.
 - Complete PLUGIN-001 manifest schema draft and PLUGIN-003 registry introspection plan.
 - Add at least one end-to-end browser smoke for Studio draft to publish validation.
 
 Exit criteria:
 
 - Current docs no longer overclaim plugin, SDK, identity, or moderation capabilities.
+- Roadmap explicitly frames Blobcade as a browser-first Roblox-style niche competitor, not a direct Roblox clone or broad engine.
+- Each wedge genre has a template checklist and discovery/category requirement.
 - Authenticated creator can claim an existing token-owned game.
 - Studio can show a real preflight validation report before publish.
 
 ### 60 Days
 
-Focus: versioned publishing, plugin package foundation, and review states.
+Focus: versioned publishing, low-friction creation, plugin package foundation, and review states.
 
 - Complete ID-004, ID-005, and the schema portion of ID-006.
 - Complete STUDIO-002, STUDIO-003, STUDIO-004, and STUDIO-005.
+- Complete STUDIO-007 and STUDIO-008 for template-to-test-to-share/publish workflow.
 - Complete PLUGIN-001 through PLUGIN-004.
-- Complete CONTENT-001, CONTENT-002, and CONTENT-003.
+- Complete CONTENT-001, CONTENT-002, CONTENT-003, and CONTENT-008.
 - Start NET-001 and NET-002.
+- Start DISC-002 with wedge category metadata and remix entry points.
 - Add tests for version immutability, remix lineage, server validation parity, and first-party package enable/disable.
 
 Exit criteria:
 
 - Republish creates immutable versions.
+- A creator can start from at least one wedge template, test-play, and create a shareable or publishable version from Studio.
 - Public catalog publishing can require review state.
 - First-party registry entries report package provenance.
 - WebSocket endpoint configuration is not hardcoded.
 
 ### 90 Days
 
-Focus: server authority, economy ledger, and operational basics.
+Focus: trustworthy multiplayer, staged economy ledger, wedge discovery, and operational basics.
 
-- Complete NET-001 through NET-005.
-- Complete ECO-001 through ECO-003.
+- Complete NET-001 through NET-005 and NET-009.
+- Complete ECO-001 through ECO-003 and ECO-008.
 - Complete CONTENT-004 through CONTENT-007.
+- Complete DISC-002 for the first public wedge lanes.
 - Complete OPS-001 and OPS-002.
 - Start ANALYTICS-001 and PERF-001.
+- Start ECO-009 and PERF-004.
 - Add two-client acceptance tests for shared session state and PvP damage arbitration.
 
 Exit criteria:
 
-- Client cannot forge Bolts balance for authenticated accounts.
+- Client cannot forge Blobcash balance for authenticated accounts.
 - PvP health is server-owned for multiplayer sessions.
+- Arena, CTF, and battle-royale-lite templates have explicit server-validation gates for critical match state.
 - Reports and moderation actions are account/device-backed and audited.
+- Real-money payout remains disabled and gated by fraud, moderation, accounting, tax/legal, and audit requirements.
 - Health/readiness and migration checks exist for deployment.
 
 ## Definition of Done for Platform Parity
 
-Boxcade reaches platform parity when all of the following are true:
+Blobcade reaches credible Roblox-style niche competitor status when all of the following are true:
 
+- Blobcade is clearly positioned as browser-first, instant-play, low-friction UGC, not a direct Roblox replacement or general-purpose engine.
+- A new creator can start from a supported genre template, test, publish or share, and invite players in minutes.
+- Obby, arena shooter, voxel island/sandbox, CTF, and battle-royale-lite lanes have templates, validation, discovery, and performance budgets.
 - Creators authenticate, own games, work in teams, and recover access across devices.
 - Studio supports build, test, validate, publish, republish, remix, version history, rollback, dependency inspection, analytics, and earnings.
 - GameDoc, package manifests, published versions, artifacts, and migrations are versioned and tested.
@@ -432,18 +531,25 @@ Boxcade reaches platform parity when all of the following are true:
 - Discovery ranks approved content using quality, trust, engagement, and safety signals.
 - Multiplayer sessions are server-orchestrated, observable, recoverable, and authoritative for critical state.
 - Economy, stores, marketplace purchases, creator earnings, and entitlements are server-ledger-backed.
+- Real-money creator payout is explicitly gated until fraud review, moderation, accounting, tax/legal review, appeals, and audit controls are complete.
 - Plugin packages have manifests, lifecycle, compatibility checks, registry introspection, catalog metadata, and permissions.
 - Sandboxed scripting exists with capability APIs, resource limits, diagnostics, and review signals.
 - Analytics gives creators actionable retention, quality, monetization, and moderation feedback.
 - Mobile play is first-class, Studio has a clear mobile/tablet stance, and accessibility checks are part of release gates.
+- Native desktop, tablet, and mobile builds launch the same Blobcade app through Tauri, preserve local drafts/settings, use configured backend services, and degrade cleanly offline.
 - Operations include health, metrics, logs, migrations, backups, restore drills, admin audit, incident workflow, and deployment runbooks.
 - Export/import exists for creator-owned work with dependency validation and clear rights boundaries.
 
 ## Research Basis
 
-This roadmap is based on public documentation patterns from established creator, UGC, marketplace, safety, and analytics platforms. The point is not to copy product surface area; it is to adopt proven platform primitives: identity, teams, versioning, moderation, capability boundaries, analytics, marketplace controls, and operational status.
-The list is representative, non-exhaustive, and intentionally excludes the benchmark named in the request.
+This roadmap is based on public documentation patterns from established creator, UGC, marketplace, safety, and analytics platforms. The point is not to copy product surface area; it is to adopt proven platform primitives: identity, teams, versioning, moderation, capability boundaries, analytics, marketplace controls, and operational status. Roblox is included as the benchmark for creator-platform completeness, but not as a feature-for-feature clone target.
+The list is representative and non-exhaustive.
 
+- Roblox Creator Hub, useful as the benchmark for full creator-platform scope: https://create.roblox.com/landing
+- Roblox monetization documentation, useful for understanding mature creator economy expectations: https://create.roblox.com/docs/monetize
+- Roblox Creator Store documentation, useful for package, asset, and marketplace expectations: https://create.roblox.com/docs/production/creator-store
+- Roblox engine API reference, useful for comparing engine API breadth against Blobcade's intentionally smaller SDK surface: https://create.roblox.com/docs/reference/engine
+- Tauri documentation, useful for desktop/mobile native shell, Vite integration, mobile targets, and permission capabilities: https://v2.tauri.app/
 - Epic Games Creator Portal team and publishing concepts: https://dev.epicgames.com/documentation/en-us/fortnite/creating-teams-in-creator-portal-in-unreal-editor-for-fortnite
 - Epic Verse language and device API documentation, useful as a reference for capability-scoped creator APIs: https://dev.epicgames.com/documentation/en-us/uefn/verse-language-reference
 - Unity UGC and Vivox-related platform documentation, useful for creator content lifecycle and community service thinking: https://docs.unity.com/ugs/en-us/manual/overview/manual/unity-gaming-services-home

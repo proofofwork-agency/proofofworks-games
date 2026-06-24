@@ -10,23 +10,26 @@ Use ContextRelay when:
 - You want implementation help, test help, debugging help, or architecture review.
 - You would normally stop to ask the human a planning or decision question that the peer agent can help answer first.
 
-Codex should coordinate:
-- Planning and task routing.
+Claude should ask Codex for:
 - Focused implementation work.
 - Test writing or debugging.
-- Git writes when runtime permissions allow it and the human has approved this repo policy.
-
-Claude should support Codex with:
-- Repo-wide reasoning and architecture review.
-- Risk review before large changes.
+- Code review and logic checks.
 - Alternative implementation approaches.
-- Focused implementation or debugging tasks when Codex delegates them.
+
+Codex should ask Claude for:
+- Planning and coordination.
+- Repo-wide reasoning.
+- Risk review before large changes.
 
 Git write policy:
 - Git write operations should be handled only by the current coordinator agent or the human.
-- Current coordinator: Codex.
-- Codex may handle branch, commit, merge, push, and PR work only when runtime permissions allow it and the human has approved that policy.
-- Non-coordinator agents should use read-only git commands only and hand off git-sensitive work to Codex or the human.
+- Current coordinator: Claude.
+- If the project explicitly configures Codex as coordinator, Codex may handle branch, commit, merge, push, and PR work only when runtime permissions allow it and the human has approved that policy.
+- Non-coordinator agents should use read-only git commands only and hand off git-sensitive work to Claude.
+
+Ask the coordinator for work, don't sit idle:
+- When you finish a task, get blocked, or go idle, proactively ask Claude (the coordinator) for the next task — say what you finished and that you are ready for more. Do not wait silently.
+- To ask: Claude uses `handoff` (or `reply`); Codex uses `handoff_to_claude` (or `send_to_claude`).
 
 Use explicit handoffs when passing control:
 - State the reason.
@@ -42,7 +45,8 @@ Autonomous decision flow:
 
 Useful ContextRelay tools for Codex:
 - `handoff_to_claude` for normal delegation to Claude.
-- `deliberate_with_claude` for a bounded debate/convergence pass with Claude.
+- `deliberate_with_claude` for a bounded live debate/convergence pass with Claude on an open decision.
+- `headless_run` to spin up an on-demand, read-only Claude/Codex reviewer (one-shot, fresh context). Fan out several for parallel independent review, then orchestrate the result yourself: reconcile the reviews (`deliberate_with_claude` on open disagreement) and synthesize them into a decision you record (`append_note` / `propose_final`). `headless_run` is a one-shot primitive — the deliberation/orchestration lives in the caller, not the tool.
 - `send_to_claude` for a direct live message to Claude.
 - For independent validation requests, call `handoff_to_claude` with `wait_for_reply: true`; use `wait_for_claude` for an explicit follow-up wait.
 - `read_context`, `wait_for_claude`, `append_note`, `session_info`, `task_state`, and `record_artifact` for durable shared context.

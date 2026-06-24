@@ -4,7 +4,7 @@ import { validateGameDoc, type GameDoc, type StudioGameMode } from '../src/sdk/g
 import { analyzeStudioScript, applyStudioMode, getStudioModeSettings, STUDIO_MODE_OPTIONS } from '../src/studio/modes'
 
 const baseDoc = (): GameDoc => ({
-  boxcade: 'gamedoc',
+  blobcade: 'gamedoc',
   v: 1,
   meta: { name: 'Mode Test' },
   parts: [{ kind: 'part', id: 'creator_block', at: [4, 1, 4], size: [2, 2, 2], color: '#abcdef' }],
@@ -73,27 +73,27 @@ describe('Studio Mode Builder', () => {
   })
 
   it('reports script syntax and sandbox capability hints', () => {
-    const broken = analyzeStudioScript('boxcade.toast("hi"\nfetch("/x")')
+    const broken = analyzeStudioScript('blobcade.toast("hi"\nfetch("/x")')
     expect(broken.errors.length).toBeGreaterThan(0)
     expect(broken.warnings.join(' ')).toContain('fetch')
 
-    const ok = analyzeStudioScript('boxcade.onStart(() => boxcade.toast("hi"))')
+    const ok = analyzeStudioScript('blobcade.onStart(() => blobcade.toast("hi"))')
     expect(ok.errors).toEqual([])
     expect(ok.capabilities).toEqual(['onStart', 'toast'])
   })
 
   it('validates scripts against the documented sandbox API', () => {
     const analysis = analyzeStudioScript(`
-      boxcade.fly()
-      boxcade.entity('bot').dance()
-      boxcade.emit('combat:kill')
-      boxcade.sound('airhorn')
+      blobcade.fly()
+      blobcade.entity('bot').dance()
+      blobcade.emit('combat:kill')
+      blobcade.sound('airhorn')
       document.body
       import('/remote.js')
     `)
 
     const text = analysis.warnings.join('\n')
-    expect(text).toContain('boxcade.fly is not in the documented sandbox API')
+    expect(text).toContain('blobcade.fly is not in the documented sandbox API')
     expect(text).toContain('entity.dance is not in the documented entity API')
     expect(text).toContain("Reserved engine event 'combat:kill'")
     expect(text).toContain("Sound 'airhorn'")

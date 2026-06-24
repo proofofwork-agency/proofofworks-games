@@ -88,7 +88,7 @@ export function createChatSystem(deps: {
   })
 
   return {
-    id: 'boxcade:chat',
+    id: 'blobcade:chat',
     get isOpen() { return chatOpen },
     open,
     addLine,

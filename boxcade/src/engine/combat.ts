@@ -1,4 +1,4 @@
-// Boxcade combat: a classic arena-shooter arsenal (hitscan + projectile
+// Blobcade combat: a classic arena-shooter arsenal (hitscan + projectile
 // archetypes), damage/respawn, splash knockback (rocket jumps work), limited
 // ammo with weapon/ammo/health pickups, and bots that run the same character
 // physics as players. Bots pick the right gun for the range, lead their
@@ -14,6 +14,7 @@ import { Avatar } from './avatar'
 import { Particles } from './fx'
 import { audio } from './audio'
 import { v3, vclone, type Vec3 } from './math'
+import { safeColor } from './world'
 import type { EventBus } from './events'
 
 // ---------------------------------------------------------------- weapons --
@@ -104,7 +105,7 @@ export const DEFAULT_LOADOUT = ['sidearm', 'shock', 'pulse', 'minigun', 'flak', 
  *   registerWeapon({ id: 'crossbow', name: 'Crossbow', icon: '🏹', kind: 'projectile', ... })
  */
 export function registerWeapon(def: WeaponDef): WeaponDef {
-  if (WEAPONS[def.id]) console.warn(`[boxcade] registerWeapon: overwriting '${def.id}'`)
+  if (WEAPONS[def.id]) console.warn(`[blobcade] registerWeapon: overwriting '${def.id}'`)
   WEAPONS[def.id] = def
   return def
 }
@@ -531,10 +532,16 @@ const basicMats = new Map<string, THREE.MeshBasicMaterial>()
 function basicMat(color: string): THREE.MeshBasicMaterial {
   let m = basicMats.get(color)
   if (!m) {
-    m = new THREE.MeshBasicMaterial({ color, transparent: true })
+    m = new THREE.MeshBasicMaterial({ color: safeColor(color), transparent: true })
     basicMats.set(color, m)
   }
   return m
+}
+
+export function pickBotSpawn(spawns: Vec3[], fallback: Vec3): Vec3 {
+  return spawns.length > 0
+    ? spawns[Math.floor(Math.random() * spawns.length)]!
+    : fallback
 }
 
 /** floating damage number sprite (drifts up, fades out) */
@@ -652,7 +659,7 @@ export class CombatSystem {
     ctrl.walkSpeed = this.self.ctrl.walkSpeed * 0.92
     ctrl.gravity = this.self.ctrl.gravity
     ctrl.jumpVel = this.self.ctrl.jumpVel
-    const spawn = opts.spawns[Math.floor(Math.random() * opts.spawns.length)]
+    const spawn = pickBotSpawn(opts.spawns, this.self.pos)
     ctrl.teleport(v3(spawn.x + (Math.random() - 0.5), spawn.y, spawn.z + (Math.random() - 0.5)))
     const avatar = new Avatar(opts.name, 'bot:' + opts.name, opts.shirt)
     avatar.holdWeapon()

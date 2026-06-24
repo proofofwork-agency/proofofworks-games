@@ -1,4 +1,4 @@
-// Chunked voxel terrain — the sandbox DNA in Boxcade. 16x16 chunks,
+// Chunked voxel terrain — the sandbox DNA in Blobcade. 16x16 chunks,
 // hidden-face culling, classic per-vertex ambient occlusion (the corner
 // darkening that makes flat-colored blocks read as 3D), face shading and
 // per-block color jitter. Meshes rebuild per chunk on edit.
@@ -87,6 +87,7 @@ export class VoxelWorld implements ColliderSource {
   private opaqueMat: THREE.MeshStandardMaterial
   private waterMat: THREE.MeshStandardMaterial
   private glowMat: THREE.MeshStandardMaterial
+  private disposed = false
 
   constructor(sx = 96, sy = 42, sz = 96, seaLevel = 10) {
     this.sx = sx
@@ -305,6 +306,25 @@ export class VoxelWorld implements ColliderSource {
     })
   }
 
+  dispose() {
+    if (this.disposed) return
+    this.disposed = true
+    for (const chunk of this.chunkMeshes) {
+      for (let i = 0; i < chunk.length; i++) {
+        const m = chunk[i]
+        if (!m) continue
+        this.group.remove(m)
+        m.geometry.dispose()
+        chunk[i] = null
+      }
+    }
+    this.waterMeshes.length = 0
+    this.opaqueMat.dispose()
+    this.waterMat.dispose()
+    this.glowMat.dispose()
+    this.group.clear()
+  }
+
   private cornerAO(x: number, y: number, z: number, f: Face, corner: [number, number, number]): number {
     // tangent axes of the face
     const axes = [0, 1, 2].filter((a) => [f.nx, f.ny, f.nz][a] === 0)
@@ -398,7 +418,7 @@ export class VoxelWorld implements ColliderSource {
     }
     runs.push(count, cur)
     return JSON.stringify({
-      boxcade: 'voxel-world/v1',
+      blobcade: 'voxel-world/v1',
       size: [this.sx, this.sy, this.sz],
       seaLevel: this.seaLevel,
       rle: runs,
@@ -411,14 +431,14 @@ export class VoxelWorld implements ColliderSource {
    * callers surface it to the player (corrupt file / wrong file type).
    */
   static deserialize(saved: string | object): VoxelWorld {
-    let obj: { boxcade?: string; size?: unknown; seaLevel?: number; rle?: unknown }
+    let obj: { blobcade?: string; boxcade?: string; size?: unknown; seaLevel?: number; rle?: unknown }
     try {
       obj = typeof saved === 'string' ? JSON.parse(saved) : (saved as Record<string, unknown>)
     } catch {
       throw new Error('voxel world: not valid JSON')
     }
-    if (!obj || obj.boxcade !== 'voxel-world/v1') {
-      throw new Error('voxel world: not a Boxcade voxel-world/v1 file')
+    if (!obj || (obj.blobcade !== 'voxel-world/v1' && obj.boxcade !== 'voxel-world/v1')) {
+      throw new Error('voxel world: not a Blobcade voxel-world/v1 file')
     }
     const size = obj.size
     if (!Array.isArray(size) || size.length !== 3 || size.some((n) => !Number.isInteger(n) || n < 1 || n > 512)) {

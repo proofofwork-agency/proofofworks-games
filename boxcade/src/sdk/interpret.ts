@@ -46,7 +46,7 @@ export interface BuildGameOptions {
  */
 export function buildGameFromDoc(input: unknown, opts?: BuildGameOptions): GameDef {
   const res = validateGameDoc(input)
-  for (const w of res.warnings) console.warn(`[boxcade] gamedoc: ${w}`)
+  for (const w of res.warnings) console.warn(`[blobcade] gamedoc: ${w}`)
   if (!res.ok || !res.doc) throw new GameDocError(res.errors)
   const root = migrateGameDoc(res.doc)
   const { doc, levelN } = resolveLevel(root, opts?.level ?? 0)
@@ -58,7 +58,7 @@ export function buildGameFromDoc(input: unknown, opts?: BuildGameOptions): GameD
   const meta: GameMeta = {
     id: doc.meta.id ?? slugifyName(baseName),
     name: levelN >= 2 ? `${baseName} — Level ${levelN}` : baseName,
-    blurb: doc.meta.blurb ?? 'A community-made Boxcade game.',
+    blurb: doc.meta.blurb ?? 'A community-made Blobcade game.',
     emoji: doc.meta.emoji ?? '🎮',
     gradient: doc.meta.gradient ?? DEFAULT_GRADIENT,
     genre: doc.meta.genre ?? 'Community',
@@ -120,7 +120,7 @@ function resolveLevel(root: GameDoc, level: number): { doc: GameDoc; levelN: num
   if (!lv) return { doc: root, levelN: 0 }
   const effective: GameDoc = {
     ...lv,
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: root.v,
     meta: { ...root.meta, ...(lv.meta ?? {}) },
     // inherit these top-level sections from the parent when the level omits them

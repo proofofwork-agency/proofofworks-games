@@ -1,5 +1,5 @@
 // ============================================================================
-//  Boxcade SDK — build a multiplayer browser game in a handful of lines.
+//  Blobcade SDK — build a multiplayer browser game in a handful of lines.
 //
 //    import { defineGame, v3, behaviors } from '../sdk'
 //
@@ -174,14 +174,14 @@ export interface PhysicsConfig {
   fallDamage?: boolean
 }
 
-/** a per-game cosmetic on sale for Bolts — always a procedural recolor */
+/** a per-game cosmetic on sale for Blobcash — always a procedural recolor */
 export interface StoreItemDef {
   id: string
   name: string
   /** what the recolor applies to */
   kind: 'shirt' | 'trail'
   color: string
-  /** price in Bolts (the creator keeps a 30% cut on published games) */
+  /** price in Blobcash (the creator keeps a 30% cut on published games) */
   price: number
 }
 
@@ -280,12 +280,12 @@ export interface GameContext {
   playersOnline: number
   /** session coin balance for this player */
   coins: number
-  /** grant coins (plays the coin sound + sparkle; coins also earn Bolts 1:1) */
+  /** grant coins (plays the coin sound + sparkle; coins also earn Blobcash 1:1) */
   award(n: number): void
   /** persistent platform currency balance */
-  readonly bolts: number
-  /** grant Bolts (the platform economy — kills, wins, achievements) */
-  earnBolts(n: number, reason?: string): void
+  readonly blobcash: number
+  /** grant Blobcash (the platform economy — kills, wins, achievements) */
+  earnBlobcash(n: number, reason?: string): void
   /** confetti + fanfare + big message — the win moment */
   celebrate(msg?: string): void
   /** system line in chat (local) */
@@ -346,7 +346,7 @@ export interface GameDef {
    * mix in reusable systems instead of growing one giant onTick
    */
   systems?: GameSystem[]
-  /** platform services: chat toggle, leaderboard toggle, per-game Bolts store */
+  /** platform services: chat toggle, leaderboard toggle, per-game Blobcash store */
   services?: GameServices
   build(w: WorldBuilder): void
   onStart?(ctx: GameContext): void

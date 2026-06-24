@@ -1,4 +1,4 @@
-// Voxel Island — the voxel-sandbox side of Boxcade's family tree. A
+// Voxel Island — the voxel-sandbox side of Blobcade's family tree. A
 // procedurally generated island you can reshape freely: pointer-lock first
 // person, left-click break, right-click place, hotbar 1-8, swimmable water,
 // and a world you can download as JSON and reload from the SDK.

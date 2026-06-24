@@ -1,10 +1,11 @@
-// Client for the Boxcade publish/discovery API (served by server/server.mjs
+// Client for the Blobcade publish/discovery API (served by server/server.mjs
 // on the same port as the multiplayer relay). Everything degrades gracefully:
 // when the server is unreachable the portal simply hides the Community shelf.
 
 import type { GameDoc } from './sdk'
+import { apiBaseUrl } from './config'
 
-const base = () => `${location.protocol}//${location.hostname}:8081`
+const base = () => apiBaseUrl()
 
 export interface CommunityGame {
   id: string
@@ -23,10 +24,10 @@ export interface CommunityGame {
 
 /** anonymous per-browser identity for likes/report dedup (not an account) */
 export function deviceKey(): string {
-  let k = localStorage.getItem('boxcade.device')
+  let k = localStorage.getItem('blobcade.device')
   if (!k) {
     k = Math.random().toString(36).slice(2, 12) + Date.now().toString(36)
-    localStorage.setItem('boxcade.device', k)
+    localStorage.setItem('blobcade.device', k)
   }
   return k
 }
@@ -59,7 +60,7 @@ export interface PublishedGame {
   plays: number
   likes: number
   updated: number
-  doc: GameDoc | { boxcade: 'embed'; v: number; meta?: { name?: string; emoji?: string; blurb?: string } }
+  doc: GameDoc | { blobcade: 'embed'; v: number; meta?: { name?: string; emoji?: string; blurb?: string } }
 }
 
 export async function getPublishedGame(id: string): Promise<PublishedGame> {
@@ -84,7 +85,7 @@ export async function unpublishGame(id: string, token: string): Promise<void> {
 
 /** count a play at most once per game per device per 6h */
 export function countPlay(id: string) {
-  const key = `boxcade.played.${id}`
+  const key = `blobcade.played.${id}`
   const last = Number(localStorage.getItem(key) ?? 0)
   if (Date.now() - last < 6 * 3600_000) return
   localStorage.setItem(key, String(Date.now()))
@@ -100,7 +101,7 @@ export async function reportGame(id: string, reason: string): Promise<void> {
   await call(`/api/games/${id}/report`, { method: 'POST', body: JSON.stringify({ device: deviceKey(), reason }) })
 }
 
-// ---- creator earnings (claim Bolts your published games earned) ----
+// ---- creator earnings (claim Blobcash your published games earned) ----
 
 export async function getEarnings(id: string, token: string): Promise<{ accrued: number; claimed: number }> {
   return call(`/api/games/${id}/earnings`, { headers: { 'x-edit-token': token } })
@@ -116,7 +117,7 @@ export async function claimEarnings(id: string, token: string): Promise<number> 
 export async function submitScore(id: string, score: number): Promise<void> {
   await call(`/api/games/${id}/scores`, {
     method: 'POST',
-    body: JSON.stringify({ device: deviceKey(), name: localStorage.getItem('boxcade.name') ?? 'Boxy', score }),
+    body: JSON.stringify({ device: deviceKey(), name: localStorage.getItem('blobcade.name') ?? 'Boxy', score }),
   })
 }
 
@@ -139,7 +140,7 @@ interface PublishRecord { id: string; token: string }
 
 function readTokens(): Record<string, PublishRecord> {
   try {
-    return JSON.parse(localStorage.getItem('boxcade.publishTokens') ?? '{}')
+    return JSON.parse(localStorage.getItem('blobcade.publishTokens') ?? '{}')
   } catch {
     return {}
   }
@@ -152,11 +153,11 @@ export function publishRecordFor(draftKey: string): PublishRecord | null {
 export function rememberPublish(draftKey: string, rec: PublishRecord) {
   const all = readTokens()
   all[draftKey] = rec
-  localStorage.setItem('boxcade.publishTokens', JSON.stringify(all))
+  localStorage.setItem('blobcade.publishTokens', JSON.stringify(all))
 }
 
 export function forgetPublish(draftKey: string) {
   const all = readTokens()
   delete all[draftKey]
-  localStorage.setItem('boxcade.publishTokens', JSON.stringify(all))
+  localStorage.setItem('blobcade.publishTokens', JSON.stringify(all))
 }

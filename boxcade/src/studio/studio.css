@@ -1,4 +1,4 @@
-/* Boxcade Studio layout: viewport fills the screen; palette left, panels
+/* Blobcade Studio layout: viewport fills the screen; palette left, panels
    right, toolbar top — all floating over the 3D view. */
 
 .studio-shell { position: fixed; inset: 0; overflow: hidden; background: #0c0f1d; }

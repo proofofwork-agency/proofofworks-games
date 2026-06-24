@@ -1,10 +1,11 @@
 // First-person weapon viewmodels — the gun you see in your hands.
-// Every weapon is a distinct blocky silhouette built from boxes (no assets),
+// Every weapon is a distinct chunky silhouette built from rounded blocks (no assets),
 // with walk bob, mouse sway, recoil kick, a raise animation on switch,
 // spinning minigun barrels and an additive muzzle flash. The flash mesh
 // doubles as the world-space muzzle anchor that beams/rockets spawn from.
 
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { partMaterial } from './world'
 import type { WeaponDef } from './combat'
 import type { Vec3 } from './math'
@@ -13,13 +14,26 @@ const DARK = '#262c36'
 const STEEL = '#3a4654'
 const GRIP = '#1d232c'
 
+const geoCache = new Map<string, RoundedBoxGeometry>()
+
+function roundedBlock(w: number, h: number, d: number): RoundedBoxGeometry {
+  const key = `${w.toFixed(3)}|${h.toFixed(3)}|${d.toFixed(3)}`
+  let g = geoCache.get(key)
+  if (!g) {
+    const r = Math.min(0.018, Math.min(w, h, d) * 0.18)
+    g = new RoundedBoxGeometry(w, h, d, 2, r)
+    geoCache.set(key, g)
+  }
+  return g
+}
+
 function block(
   parent: THREE.Object3D,
   w: number, h: number, d: number,
   x: number, y: number, z: number,
   color: string, kind: 'metal' | 'plastic' | 'neon' = 'metal',
 ): THREE.Mesh {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), partMaterial(color, kind))
+  const m = new THREE.Mesh(roundedBlock(w, h, d), partMaterial(color, kind))
   m.position.set(x, y, z)
   parent.add(m)
   return m
@@ -130,6 +144,7 @@ export class ViewModel {
   private flash: THREE.Mesh
   private flashTtl = 0
   private lamp: THREE.PointLight
+  private disposed = false
 
   constructor(camera: THREE.PerspectiveCamera) {
     // bottom-right of the view, like every shooter since 1996
@@ -226,6 +241,11 @@ export class ViewModel {
   }
 
   dispose() {
+    if (this.disposed) return
+    this.disposed = true
     this.group.removeFromParent()
+    this.flash.geometry.dispose()
+    for (const m of Array.isArray(this.flash.material) ? this.flash.material : [this.flash.material]) m.dispose()
+    this.models.clear()
   }
 }

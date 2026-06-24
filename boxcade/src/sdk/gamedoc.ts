@@ -1,4 +1,4 @@
-// GameDoc — a Boxcade game as one JSON document. This is the platform's
+// GameDoc — a Blobcade game as one JSON document. This is the platform's
 // interchange format: the editor saves it, share links encode it, the studio
 // edits it, the backend stores it, and buildGameFromDoc() (interpret.ts)
 // turns it into a runnable GameDef. Spec: docs/GAMEDOC.md.
@@ -6,7 +6,7 @@
 // Versioning contract (decide once, keep forever):
 //   - integer `v`, linear migrateGameDoc() chain
 //   - unknown FIELDS  → warn and ignore (old clients degrade gracefully)
-//   - unknown VERSION → hard error ("made with a newer Boxcade")
+//   - unknown VERSION → hard error ("made with a newer Blobcade")
 //   - extensible content (materials, weapons, tiles, behaviors, sky presets,
 //     rule actions) is referenced by registry NAME STRINGS, never by index.
 
@@ -107,7 +107,9 @@ export const DOC_PART_KINDS = [
 const DOC_VEHICLE_TYPES = ['car', 'jetpack', 'boat', 'plane'] as const
 
 export interface GameDoc {
-  boxcade: 'gamedoc'
+  blobcade: 'gamedoc'
+  /** legacy marker accepted on read, omitted from new writes */
+  boxcade?: 'gamedoc'
   v: number
   meta: GameDocMeta
   maxPlayers?: number
@@ -133,7 +135,7 @@ export interface GameDoc {
   /**
    * extra levels of THIS game (depth 1 — a level may not nest its own
    * `levels`). Level 0 is the root doc; `levels[n-1]` is "level n". Each entry
-   * is a GameDoc that may omit `boxcade`/`v`/`meta` (inherited from the parent)
+   * is a GameDoc that may omit `blobcade`/`v`/`meta` (inherited from the parent)
    * and inherits `weapons`/`combat`/`physics`/`lighting` when it omits them.
    */
   levels?: GameDoc[]
@@ -191,7 +193,7 @@ export interface GameDocValidation {
 }
 
 const TOP_FIELDS = new Set([
-  'boxcade', 'v', 'meta', 'maxPlayers', 'camera', 'physics', 'lighting', 'killY', 'spawn',
+  'blobcade', 'boxcade', 'v', 'meta', 'maxPlayers', 'camera', 'physics', 'lighting', 'killY', 'spawn',
   'rtReflections', 'combat', 'services', 'weapons', 'textmap', 'parts', 'voxel', 'rules', 'vars', 'levels', 'studio', 'script',
 ])
 
@@ -219,13 +221,20 @@ export function validateGameDoc(input: unknown): GameDocValidation {
   }
   const d = input as Record<string, unknown>
 
-  if (d.boxcade !== 'gamedoc') err(`missing boxcade: 'gamedoc' marker — is this a Boxcade game file?`)
+  const hasBlobcadeMarker = d.blobcade === 'gamedoc'
+  const hasLegacyBoxcadeMarker = d.boxcade === 'gamedoc'
+  if (!hasBlobcadeMarker && !hasLegacyBoxcadeMarker) {
+    err(`missing blobcade: 'gamedoc' marker — is this a Blobcade game file?`)
+  } else if (!hasBlobcadeMarker && hasLegacyBoxcadeMarker) {
+    d.blobcade = 'gamedoc'
+    delete d.boxcade
+  }
   if (!Number.isInteger(d.v)) {
-    err('missing version number v')
+    err('missing or invalid version number v')
   } else if ((d.v as number) > GAMEDOC_VERSION) {
-    err(`this game was made with a newer Boxcade (doc v${d.v}, this build understands v${GAMEDOC_VERSION}) — refresh / update to play it`)
+    err(`this game was made with a newer Blobcade (doc v${d.v}, this build understands v${GAMEDOC_VERSION}) — refresh / update to play it`)
   } else if ((d.v as number) < 1) {
-    err(`bad version v${d.v}`)
+    err(`unsupported/too-old GameDoc version v${d.v} — this build supports v1–v${GAMEDOC_VERSION}`)
   }
 
   validateDocBody(d, err, warn, false, '')
@@ -236,7 +245,7 @@ export function validateGameDoc(input: unknown): GameDocValidation {
 
 /**
  * Validate one entry of `doc.levels` (depth-1 sub-doc). A level may omit
- * `boxcade`/`v`/`meta` (inherited from the parent at build time), so those
+ * `blobcade`/`v`/`meta` (inherited from the parent at build time), so those
  * three checks are skipped; it may NOT declare its own `levels`. Everything
  * else is validated exactly as a top-level doc. `path` is the error prefix
  * (e.g. `levels[0]`).
@@ -311,7 +320,7 @@ function validateDocBody(
     } else if (d.weapons.length > GAMEDOC_LIMITS.weapons) {
       err(`${pathPrefix}too many weapons (${d.weapons.length}, max ${GAMEDOC_LIMITS.weapons})`)
     } else {
-      d.weapons.forEach((wp, i) => validateWeapon(wp, `${pathPrefix}weapons[${i}]`, err))
+      d.weapons.forEach((wp, i) => validateWeapon(wp, `${pathPrefix}weapons[${i}]`, err, warn))
     }
   }
 
@@ -497,6 +506,7 @@ function validatePart(p: unknown, path: string, err: (m: string) => void, warn: 
       && part.rotY !== undefined && !isNum(part.rotY)) {
     err(`${path}: rotY must be a number (radians)`)
   }
+  warnHexColor(part, path, 'color', warn)
 
   if (kind === 'part') {
     validateSize(part.size, `${path}: size`, err)
@@ -621,7 +631,7 @@ function validateRule(r: unknown, path: string, err: (m: string) => void, warn: 
   })
 }
 
-function validateWeapon(wp: unknown, path: string, err: (m: string) => void) {
+function validateWeapon(wp: unknown, path: string, err: (m: string) => void, warn: (m: string) => void) {
   if (typeof wp !== 'object' || wp === null || Array.isArray(wp)) return err(`${path}: not an object`)
   const w = wp as Record<string, unknown>
 
@@ -645,6 +655,7 @@ function validateWeapon(wp: unknown, path: string, err: (m: string) => void) {
   if (w.spread !== undefined && !isNum(w.spread)) err(`${path}: spread must be a number`)
   if (w.range !== undefined && !isNumIn(w.range, 0, 400)) err(`${path}: range must be a number ≤400`)
   checkOptStr(w, path, 'beamColor', GAMEDOC_LIMITS.ref, err)
+  warnHexColor(w, path, 'beamColor', warn)
   if (w.beamWidth !== undefined && !isNum(w.beamWidth)) err(`${path}: beamWidth must be a number`)
   if (w.zoomFov !== undefined && !isNumIn(w.zoomFov, 8, 70)) err(`${path}: zoomFov must be a number 8–70`)
   if (w.ammoMax !== undefined && (!Number.isInteger(w.ammoMax) || (w.ammoMax as number) < 0 || (w.ammoMax as number) > 999)) {
@@ -663,6 +674,7 @@ function validateWeapon(wp: unknown, path: string, err: (m: string) => void) {
       if (!isNumIn(pr.speed, 1, 120)) err(`${path}.projectile: speed must be a number 1–120`)
       if (!isNumIn(pr.radius, 0.05, 1)) err(`${path}.projectile: radius must be a number 0.05–1`)
       checkOptStr(pr, `${path}.projectile`, 'color', GAMEDOC_LIMITS.ref, err)
+      warnHexColor(pr, `${path}.projectile`, 'color', warn)
       if (pr.gravity !== undefined && !isNum(pr.gravity)) err(`${path}.projectile: gravity must be a number`)
       if (pr.splash !== undefined && !isNumIn(pr.splash, 0, 10)) err(`${path}.projectile: splash must be a number ≤10`)
       if (pr.life !== undefined && !isNumIn(pr.life, 0, 10)) err(`${path}.projectile: life must be a number ≤10`)
@@ -675,6 +687,14 @@ function checkOptStr(obj: Record<string, unknown>, owner: string, key: string, m
   if (v === undefined) return
   if (typeof v !== 'string') err(`${owner}.${key} must be a string`)
   else if (v.length > max) err(`${owner}.${key} too long (max ${max})`)
+}
+
+function warnHexColor(obj: Record<string, unknown>, owner: string, key: string, warn: (m: string) => void) {
+  const v = obj[key]
+  if (v === undefined) return
+  if (typeof v !== 'string' || !HEX_COLOR_RE.test(v)) {
+    warn(`${owner}: ${key} "${String(v)}" should be #rrggbb (will render a default)`)
+  }
 }
 
 function isNum(v: unknown): v is number {

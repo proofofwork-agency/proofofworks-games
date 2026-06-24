@@ -8,7 +8,9 @@ import { performance } from 'node:perf_hooks'
 const opts = parseArgs(process.argv.slice(2))
 const bots = numberOpt(opts.bots, 50)
 const durationMs = numberOpt(opts.duration, 30) * 1000
-const url = String(opts.url ?? 'ws://localhost:8081')
+const defaultProtocol = 'ws'
+const defaultPort = 8081
+const url = String(opts.url ?? `${defaultProtocol}://localhost:${defaultPort}`)
 const game = String(opts.game ?? 'loadtest')
 const room = String(opts.room ?? 'LOAD')
 const max = numberOpt(opts.max, Math.max(64, bots))

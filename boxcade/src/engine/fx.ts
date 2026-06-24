@@ -20,9 +20,11 @@ export class Particles {
   points: THREE.Points
   private pool: P[] = []
   private geo: THREE.BufferGeometry
+  private mat: THREE.ShaderMaterial
   private positions: Float32Array
   private colors: Float32Array
   private sizes: Float32Array
+  private disposed = false
 
   constructor(scene: THREE.Scene) {
     this.positions = new Float32Array(MAX * 3)
@@ -33,7 +35,7 @@ export class Particles {
     this.geo.setAttribute('color', new THREE.BufferAttribute(this.colors, 3))
     this.geo.setAttribute('psize', new THREE.BufferAttribute(this.sizes, 1))
 
-    const mat = new THREE.ShaderMaterial({
+    this.mat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       vertexColors: true,
@@ -71,7 +73,7 @@ export class Particles {
       })
     }
 
-    this.points = new THREE.Points(this.geo, mat)
+    this.points = new THREE.Points(this.geo, this.mat)
     this.points.frustumCulled = false
     scene.add(this.points)
   }
@@ -99,6 +101,7 @@ export class Particles {
       spread = 1,
       up = 1.4,
     } = opts
+    const palette = colors.length > 0 ? colors : ['#ffffff']
     let spawned = 0
     for (const p of this.pool) {
       if (spawned >= count) break
@@ -111,7 +114,7 @@ export class Particles {
       p.maxLife = p.life = life * (0.6 + Math.random() * 0.7)
       p.size = size * (0.7 + Math.random() * 0.6)
       p.gravity = gravity
-      p.color.set(colors[Math.floor(Math.random() * colors.length)])
+      p.color.set(palette[Math.floor(Math.random() * palette.length)])
       spawned++
     }
   }
@@ -159,5 +162,13 @@ export class Particles {
     this.geo.attributes.position.needsUpdate = true
     this.geo.attributes.color.needsUpdate = true
     this.geo.attributes.psize.needsUpdate = true
+  }
+
+  dispose() {
+    if (this.disposed) return
+    this.disposed = true
+    this.points.removeFromParent()
+    this.geo.dispose()
+    this.mat.dispose()
   }
 }

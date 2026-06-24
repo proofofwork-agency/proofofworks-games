@@ -32,7 +32,7 @@ export function createHudSystem(mount: HTMLElement, def: GameDef): HudSystem {
 
   const homeBtn = document.createElement('button')
   homeBtn.className = 'hud-home'
-  homeBtn.textContent = '⬅ Boxcade'
+  homeBtn.textContent = '⬅ Blobcade'
   homeBtn.onclick = () => { location.hash = '' }
   hudCorner.appendChild(homeBtn)
 
@@ -92,7 +92,7 @@ export function createHudSystem(mount: HTMLElement, def: GameDef): HudSystem {
   let lowFpsStreak = 0
 
   return {
-    id: 'boxcade:hud',
+    id: 'blobcade:hud',
     hudEl, hudTop, hudCorner, hudRight, toastWrap, netChip, loadingEl, api,
 
     deathFlash() {

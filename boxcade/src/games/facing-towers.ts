@@ -1,7 +1,7 @@
 // Facing Towers — two towers, one bridge, deep space: the classic arena-CTF
 // archetype, built from scratch. 3v3 capture the flag against bots, the
 // full weapon arsenal, low gravity. All geometry, names and assets are
-// Boxcade originals — see README "Licensing & inspirations".
+// Blobcade originals — see README "Licensing & inspirations".
 
 import { defineGame, buildTextMap, v3, DEFAULT_LOADOUT, type Vec3, type GameContext, type EntityApi, type PartHandle, type TextMapResult } from '../sdk'
 import { audio } from '../engine/audio'
@@ -116,13 +116,15 @@ export default defineGame({
       blue: makeFlag(ctx, 'blue', blueStand),
     }
 
-    ctx.setSpawnPoints(m.redSpawns.length ? m.redSpawns : [v3(0, 3, -48)])
-    ctx.player.teleport(m.redSpawns[0] ?? v3(0, 3, -48))
+    const redSpawns = m.redSpawns.length ? m.redSpawns : [v3(0, 3, -48)]
+    const blueSpawns = m.blueSpawns.length ? m.blueSpawns : [v3(0, 3, 48)]
+    ctx.setSpawnPoints(redSpawns)
+    ctx.player.teleport(redSpawns[0])
     for (let i = 0; i < BOT_NAMES_RED.length; i++) {
-      ctx.spawnBot({ name: BOT_NAMES_RED[i], team: 'red', skill: 0.55, spawns: m.redSpawns })
+      ctx.spawnBot({ name: BOT_NAMES_RED[i], team: 'red', skill: 0.55, spawns: redSpawns })
     }
     for (let i = 0; i < BOT_NAMES_BLUE.length; i++) {
-      ctx.spawnBot({ name: BOT_NAMES_BLUE[i], team: 'blue', skill: 0.5 + i * 0.12, spawns: m.blueSpawns })
+      ctx.spawnBot({ name: BOT_NAMES_BLUE[i], team: 'blue', skill: 0.5 + i * 0.12, spawns: blueSpawns })
     }
 
     ctx.hud.set('score', `🔴 0 — 0 🔵`)
@@ -196,13 +198,13 @@ export default defineGame({
           audio.capture()
           ctx.hud.set('score', `🔴 ${score.red} — ${score.blue} 🔵`)
           ctx.hud.big(`${e.team === 'red' ? '🔴' : '🔵'} ${e.team.toUpperCase()} SCORES!`, 2000)
-          if (e.isSelf) ctx.earnBolts(50, 'flag capture')
+          if (e.isSelf) ctx.earnBlobcash(50, 'flag capture')
 
           if (score[e.team as 'red' | 'blue'] >= CAPS_TO_WIN) {
             roundOver = true
             const selfWon = e.team === 'red'
             ctx.celebrate(selfWon ? '🏆 RED WINS!' : '🔵 BLUE WINS')
-            if (selfWon) ctx.earnBolts(150, 'match win')
+            if (selfWon) ctx.earnBlobcash(150, 'match win')
             setTimeout(() => resetRound(ctx), 4500)
           }
         }

@@ -1,4 +1,4 @@
-// The Boxcade Studio — in-world 3D creation for non-programmers. A studio
+// The Blobcade Studio — in-world 3D creation for non-programmers. A studio
 // session is its own composition root (like runtime/runtime.ts, but for
 // editing): it drives the engine subsystems directly over a GameDoc draft.
 // Every edit is a doc-op — mutate() snapshots the doc for undo, applies the
@@ -12,6 +12,7 @@
 // (×1.15) · Ctrl+D duplicate · Del delete · Ctrl+Z / Ctrl+Shift+Z undo/redo.
 
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { Renderer } from '../engine/renderer'
 import { Input } from '../engine/input'
 import { PartsWorld, behaviorFromDef, type RuntimePart } from '../engine/world'
@@ -28,6 +29,19 @@ import type { WorldBuilder, SdkPart } from '../sdk'
 import { buildStudioUI, STUDIO_PALETTE } from './ui'
 import { mountFloorPlan, STARTER_TEXTMAP, type FloorPlanHandle } from '../editor'
 import './studio.css'
+
+const ghostGeoCache = new Map<string, RoundedBoxGeometry>()
+
+function roundedGhostBox(sx: number, sy: number, sz: number): RoundedBoxGeometry {
+  const key = `${sx.toFixed(2)}|${sy.toFixed(2)}|${sz.toFixed(2)}`
+  let g = ghostGeoCache.get(key)
+  if (!g) {
+    const r = Math.min(0.09, Math.min(sx, sy, sz) * 0.16)
+    g = new RoundedBoxGeometry(sx, sy, sz, 2, r)
+    ghostGeoCache.set(key, g)
+  }
+  return g
+}
 
 export interface StudioSession {
   dispose(): void
@@ -85,9 +99,9 @@ export interface StudioApi {
 }
 
 export const createStarterStudioDoc = (): GameDoc => ({
-  boxcade: 'gamedoc',
+  blobcade: 'gamedoc',
   v: 1,
-  meta: { name: 'My Studio Game', emoji: '🧱', genre: 'Obby', blurb: 'Built in the Boxcade Studio.' },
+  meta: { name: 'My Studio Game', emoji: '🧱', genre: 'Obby', blurb: 'Built in the Blobcade Studio.' },
   camera: 'orbit',
   lighting: 'noon',
   spawn: [0, 2.6, 6],
@@ -199,8 +213,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   let placeTemplate: DocPart | null = null
   let spawnPickArmed = false
 
-  // box ghosts own their geometry+material; vehicle ghosts share cached
-  // geometry (never disposed) but own their cloned transparent materials
+  // ghosts share cached geometry (never disposed) but own their transparent materials
   function disposeGhost() {
     if (!ghost) return
     R.scene.remove(ghost)
@@ -224,12 +237,10 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   let voxels: VoxelWorld | null = null
 
   function clearWorld() {
-    for (const p of [...parts.parts]) parts.remove(p)
-    parts.group.clear()
-    parts.parts.length = 0
-    parts.reflective.length = 0
+    parts.dispose()
     if (voxels) {
       R.scene.remove(voxels.group)
+      voxels.dispose()
       voxels = null
     }
     editableMeshes = []
@@ -911,9 +922,10 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
         } else {
           const def = meshDefFor(template)
           ghost = new THREE.Mesh(
-            new THREE.BoxGeometry(def.size.x, def.size.y, def.size.z),
+            roundedGhostBox(def.size.x, def.size.y, def.size.z),
             new THREE.MeshStandardMaterial({ color: def.color ?? '#8fd0ff', transparent: true, opacity: 0.45, depthWrite: false }),
           )
+          ghost.userData.sharedGeo = true
         }
         ghost.visible = false
         R.scene.add(ghost)
@@ -933,7 +945,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
     saveNow,
     testPlay() {
       saveNow()
-      localStorage.setItem('boxcade.returnTo', viewMode === 'floorplan' ? `#/studio/${draftKey}?floorplan=1` : `#/studio/${draftKey}`)
+      localStorage.setItem('blobcade.returnTo', viewMode === 'floorplan' ? `#/studio/${draftKey}?floorplan=1` : `#/studio/${draftKey}`)
       location.hash = `#/play/draft/${draftKey}`
     },
     async share() {
@@ -946,7 +958,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `${slugifyName(doc.meta.name)}.boxcade.json`
+      a.download = `${slugifyName(doc.meta.name)}.blobcade.json`
       a.click()
       URL.revokeObjectURL(a.href)
       return { copied: false, tooBig: true }
@@ -965,7 +977,7 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
-      a.download = `${slugifyName(doc.meta.name)}.boxcade.json`
+      a.download = `${slugifyName(doc.meta.name)}.blobcade.json`
       a.click()
       URL.revokeObjectURL(a.href)
     },
@@ -1073,6 +1085,8 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       document.removeEventListener('focusout', onFocusOut)
       ui.dispose()
       input.dispose()
+      disposeGhost()
+      clearWorld()
       R.dispose()
       app.innerHTML = ''
     },

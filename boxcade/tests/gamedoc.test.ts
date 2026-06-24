@@ -2,10 +2,18 @@
 // and the DB, so the validator's accept/warn/reject behavior is contract.
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { validateGameDoc, GAMEDOC_VERSION, GAMEDOC_LIMITS, slugifyName } from '../src/sdk/gamedoc'
+import { decodeGameDoc, encodeGameDoc } from '../src/sdk/codec'
 import { RESERVED_EVENT_PREFIXES } from '../src/sdk/rules'
+import { TEMPLATES } from '../src/templates'
+import { applyStudioMode, STUDIO_MODE_OPTIONS } from '../src/studio/modes'
+import type { GameDoc } from '../src/sdk/gamedoc'
 
-const minimal = () => ({ boxcade: 'gamedoc', v: 1, meta: { name: 'Test' } })
+const minimal = () => ({ blobcade: 'gamedoc', v: 1, meta: { name: 'Test' } })
+const fixture = (name: string) =>
+  JSON.parse(readFileSync(new URL(`./fixtures/gamedoc/${name}`, import.meta.url), 'utf8')) as Record<string, unknown>
+const colorWarnings = (warnings: string[]) => warnings.filter((w) => /should be #rrggbb/.test(w))
 
 describe('validateGameDoc', () => {
   it('accepts a minimal valid doc', () => {
@@ -20,6 +28,27 @@ describe('validateGameDoc', () => {
     expect(res.ok).toBe(true)
   })
 
+  it('accepts and normalizes the legacy boxcade marker', () => {
+    const legacy = { boxcade: 'gamedoc', v: 1, meta: { name: 'Legacy' } }
+    const res = validateGameDoc(legacy)
+    expect(res.ok).toBe(true)
+    expect(res.doc?.blobcade).toBe('gamedoc')
+    expect('boxcade' in (res.doc as object)).toBe(false)
+  })
+
+  it('reads legacy .boxcade.json content and re-encodes with the blobcade marker', async () => {
+    const legacyFileText = JSON.stringify({ boxcade: 'gamedoc', v: 1, meta: { name: 'Legacy File' } })
+    const imported = validateGameDoc(legacyFileText)
+    expect(imported.ok).toBe(true)
+    expect(imported.doc?.blobcade).toBe('gamedoc')
+    expect('boxcade' in (imported.doc as object)).toBe(false)
+
+    const payload = await encodeGameDoc(imported.doc!)
+    const decoded = await decodeGameDoc(payload) as Record<string, unknown>
+    expect(decoded.blobcade).toBe('gamedoc')
+    expect(decoded.boxcade).toBeUndefined()
+  })
+
   it('rejects non-JSON strings and non-objects', () => {
     expect(validateGameDoc('not json{').ok).toBe(false)
     expect(validateGameDoc(42).ok).toBe(false)
@@ -29,18 +58,75 @@ describe('validateGameDoc', () => {
 
   it('rejects a missing marker / missing version', () => {
     expect(validateGameDoc({ v: 1, meta: { name: 'x' } }).ok).toBe(false)
-    expect(validateGameDoc({ boxcade: 'gamedoc', meta: { name: 'x' } }).ok).toBe(false)
+    expect(validateGameDoc({ blobcade: 'gamedoc', meta: { name: 'x' } }).ok).toBe(false)
   })
 
   it('rejects newer versions with an update message', () => {
     const res = validateGameDoc({ ...minimal(), v: GAMEDOC_VERSION + 1 })
     expect(res.ok).toBe(false)
-    expect(res.errors.join(' ')).toMatch(/newer Boxcade/)
+    expect(res.errors.join(' ')).toMatch(/newer Blobcade/)
+  })
+
+  it('round-trips the canonical current-version fixture', async () => {
+    const doc = fixture('current-v2.json')
+    expect(doc.v).toBe(GAMEDOC_VERSION)
+
+    const before = validateGameDoc(doc)
+    expect(before.ok, before.errors.join('\n')).toBe(true)
+
+    const payload = await encodeGameDoc(before.doc!)
+    const decoded = await decodeGameDoc(payload)
+    expect(decoded).toEqual(before.doc)
+
+    const after = validateGameDoc(decoded)
+    expect(after.ok, after.errors.join('\n')).toBe(true)
+  })
+
+  it('rejects the future-version fixture with a clear update message', () => {
+    const res = validateGameDoc(fixture('future-v999.json'))
+    expect(res.ok).toBe(false)
+    expect(res.errors.join(' ')).toMatch(/newer Blobcade/)
+    expect(res.errors.join(' ')).toMatch(/refresh|update/)
+  })
+
+  it.each([
+    ['missing-version.json', /missing or invalid version number v/],
+    ['invalid-version.json', /missing or invalid version number v/],
+    ['too-old-v0.json', /unsupported\/too-old GameDoc version v0/],
+  ])('rejects %s with a predictable version error', (file, message) => {
+    const res = validateGameDoc(fixture(file))
+    expect(res.ok).toBe(false)
+    expect(res.errors.join(' ')).toMatch(message)
+  })
+
+  it('keeps first-party templates, Studio modes, and fixtures free of color warnings', () => {
+    const docs: Array<[string, unknown]> = TEMPLATES.map((t) => [`template:${t.id}`, t.make()])
+    const baseDoc = (): GameDoc => ({
+      blobcade: 'gamedoc',
+      v: 1,
+      meta: { name: 'Mode Test' },
+      parts: [{ kind: 'part', id: 'creator_block', at: [4, 1, 4], size: [2, 2, 2], color: '#abcdef' }],
+      rules: [],
+    })
+
+    for (const [mode] of STUDIO_MODE_OPTIONS) {
+      if (mode === 'custom') continue
+      const doc = baseDoc()
+      applyStudioMode(doc, mode, undefined)
+      docs.push([`studio-mode:${mode}`, doc])
+    }
+    docs.push(['fixture:current-v2', fixture('current-v2.json')])
+
+    for (const [name, doc] of docs) {
+      const res = validateGameDoc(doc)
+      expect(res.ok, `${name}: ${res.errors.join('\n')}`).toBe(true)
+      expect(colorWarnings(res.warnings), name).toEqual([])
+    }
   })
 
   it('requires meta.name', () => {
-    expect(validateGameDoc({ boxcade: 'gamedoc', v: 1, meta: {} }).ok).toBe(false)
-    expect(validateGameDoc({ boxcade: 'gamedoc', v: 1 }).ok).toBe(false)
+    expect(validateGameDoc({ blobcade: 'gamedoc', v: 1, meta: {} }).ok).toBe(false)
+    expect(validateGameDoc({ blobcade: 'gamedoc', v: 1 }).ok).toBe(false)
   })
 
   it('warns (not errors) on unknown top-level fields', () => {
@@ -72,7 +158,7 @@ describe('validateGameDoc', () => {
   })
 
   it('rejects oversized documents and arrays', () => {
-    const bigStr = '{"boxcade":"gamedoc","v":1,"meta":{"name":"x","blurb":"' + 'a'.repeat(GAMEDOC_LIMITS.json) + '"}}'
+    const bigStr = '{"blobcade":"gamedoc","v":1,"meta":{"name":"x","blurb":"' + 'a'.repeat(GAMEDOC_LIMITS.json) + '"}}'
     expect(validateGameDoc(bigStr).ok).toBe(false)
 
     const manyParts = Array.from({ length: GAMEDOC_LIMITS.parts + 1 }, () => ({ kind: 'coin', at: [0, 0, 0] }))
@@ -90,6 +176,31 @@ describe('validateGameDoc', () => {
     expect(bad([{ kind: 'water', at: [0, 0, 0], size: [8, 0] }]).ok).toBe(false)
     expect(bad([{ kind: 'button', at: [0, 0, 0] }]).ok).toBe(true)
     expect(bad([{ kind: 'door', at: [0, 0, 0], tag: 'gate' }]).ok).toBe(true)
+  })
+
+  it('warns but does not reject invalid optional part colors', () => {
+    const res = validateGameDoc({
+      ...minimal(),
+      parts: [
+        { kind: 'part', at: [0, 0, 0], size: [1, 1, 1], color: 'red' },
+        { kind: 'label', at: [0, 2, 0], text: 'hi', color: '#fff' },
+      ],
+    })
+    expect(res.ok).toBe(true)
+    expect(res.warnings.join('\n')).toMatch(/parts\[0\]: color "red" should be #rrggbb/)
+    expect(res.warnings.join('\n')).toMatch(/parts\[1\]: color "#fff" should be #rrggbb/)
+  })
+
+  it('does not warn on valid six-digit optional part colors', () => {
+    const res = validateGameDoc({
+      ...minimal(),
+      parts: [
+        { kind: 'part', at: [0, 0, 0], size: [1, 1, 1], color: '#ffffff' },
+        { kind: 'portal', at: [0, 1, 0], target: 'home', color: '#8a5cff' },
+      ],
+    })
+    expect(res.ok).toBe(true)
+    expect(res.warnings).toEqual([])
   })
 
   describe('vehicle parts', () => {
@@ -190,9 +301,9 @@ describe('validateGameDoc', () => {
   })
 
   it('validates scripted GameDoc v2 documents', () => {
-    expect(validateGameDoc({ ...minimal(), v: 2, script: 'boxcade.toast("hi")' }).ok).toBe(true)
-    expect(validateGameDoc({ ...minimal(), script: 'boxcade.toast("hi")' }).ok).toBe(false)
-    expect(validateGameDoc({ ...minimal(), levels: [{ script: 'boxcade.toast("hi")' }] }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), v: 2, script: 'blobcade.toast("hi")' }).ok).toBe(true)
+    expect(validateGameDoc({ ...minimal(), script: 'blobcade.toast("hi")' }).ok).toBe(false)
+    expect(validateGameDoc({ ...minimal(), levels: [{ script: 'blobcade.toast("hi")' }] }).ok).toBe(false)
     expect(validateGameDoc({ ...minimal(), v: 2, script: 'x'.repeat(GAMEDOC_LIMITS.script + 1) }).ok).toBe(false)
     expect(validateGameDoc({ ...minimal(), v: 2, script: 42 }).ok).toBe(false)
   })
@@ -296,7 +407,7 @@ describe('validateGameDoc — custom weapons', () => {
       ...minimal(),
       weapons: [{
         id: 'super-rail', name: 'Super Rail', kind: 'hitscan', damage: 90, fireRate: 0.8,
-        icon: '🎯', pellets: 1, spread: 0, range: 300, beamColor: '#fff', beamWidth: 0.04,
+        icon: '🎯', pellets: 1, spread: 0, range: 300, beamColor: '#ffffff', beamWidth: 0.04,
         zoomFov: 20, ammoMax: 12, ammoPickup: 4, sound: 'sniper',
       }],
     })
@@ -307,9 +418,25 @@ describe('validateGameDoc — custom weapons', () => {
   it('accepts a projectile sub-object within range', () => {
     const res = validateGameDoc({
       ...minimal(),
-      weapons: [{ ...validWeapon(), projectile: { speed: 40, radius: 0.16, color: '#5f5', gravity: -14, splash: 4, life: 2 } }],
+      weapons: [{ ...validWeapon(), projectile: { speed: 40, radius: 0.16, color: '#55ff55', gravity: -14, splash: 4, life: 2 } }],
     })
     expect(res.ok).toBe(true)
+    expect(res.warnings).toEqual([])
+  })
+
+  it('warns but does not reject invalid weapon colors', () => {
+    const res = validateGameDoc({
+      ...minimal(),
+      weapons: [{
+        ...validWeapon(),
+        kind: 'projectile',
+        beamColor: 'cyan',
+        projectile: { speed: 40, radius: 0.16, color: '#5f5' },
+      }],
+    })
+    expect(res.ok).toBe(true)
+    expect(res.warnings.join('\n')).toMatch(/weapons\[0\]: beamColor "cyan" should be #rrggbb/)
+    expect(res.warnings.join('\n')).toMatch(/weapons\[0\]\.projectile: color "#5f5" should be #rrggbb/)
   })
 
   it('enforces required weapon fields', () => {
@@ -420,7 +547,7 @@ describe('validateGameDoc — multi-level docs (W2)', () => {
     ...extra,
   })
 
-  it('accepts a doc with levels that omit boxcade/v/meta', () => {
+  it('accepts a doc with levels that omit blobcade/v/meta', () => {
     const res = validateGameDoc({ ...minimal(), lighting: 'noon', levels: [lvl(), lvl({ lighting: 'night' })] })
     expect(res.ok).toBe(true)
     expect(res.warnings).toEqual([])

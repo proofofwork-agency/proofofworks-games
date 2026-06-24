@@ -1,4 +1,4 @@
-// Sky Obby — the flagship Boxcade game. The obby is blocky gaming's
+// Sky Obby — the flagship Blobcade game. The obby is blocky gaming's
 // foundational genre, so this is the engine's showpiece: 15 stages
 // over a lava ocean at golden hour, with checkpoints, kill bricks, moving
 // platforms, windmill hazards, an ice bridge, bounce pads and a victory podium.

@@ -1,5 +1,5 @@
-// The Boxcade portal: home screen with the built-in game grid, the My Games
-// draft shelf, the Bolts wallet + avatar shop, and player identity. main.ts
+// The Blobcade portal: home screen with the built-in game grid, the My Games
+// draft shelf, the Blobcash wallet + avatar shop, and player identity. main.ts
 // stays the router; everything the home screen renders lives here.
 
 import { GAMES } from './games'
@@ -10,6 +10,7 @@ import {
 } from './drafts'
 import { TEMPLATES } from './templates'
 import { encodeGameDoc, SHARE_LINK_LIMIT, slugifyName, type GameDoc } from './sdk'
+import { wsUrl } from './config'
 import {
   listCommunity, publishGame, republishGame, publishRecordFor, rememberPublish,
   toggleLike, reportGame, getEarnings, claimEarnings, topScores, type CommunityGame,
@@ -17,10 +18,10 @@ import {
 import './portal-extra.css'
 
 export function playerName(): string {
-  let n = localStorage.getItem('boxcade.name') ?? ''
+  let n = localStorage.getItem('blobcade.name') ?? ''
   if (!n) {
     n = 'Boxy' + Math.floor(1000 + Math.random() * 9000)
-    localStorage.setItem('boxcade.name', n)
+    localStorage.setItem('blobcade.name', n)
   }
   return n.slice(0, 16)
 }
@@ -29,7 +30,7 @@ export function playerName(): string {
  *  floor-plan painter opens onto (the Studio renders it in 3D live). */
 function newMapDoc(): GameDoc {
   return {
-    boxcade: 'gamedoc',
+    blobcade: 'gamedoc',
     v: 1,
     meta: { name: 'My Map', emoji: '🗺', genre: 'Obby', gradient: 'linear-gradient(135deg, #06d6a0, #2f81f7)' },
     camera: 'orbit',
@@ -47,7 +48,7 @@ export function renderPortal(app: HTMLElement) {
           <div class="brand-mark"><span></span></div>
           <h1>BOX<em>CADE</em></h1>
           <div class="brand-right">
-            <button class="wallet" id="walletBtn" title="Open the shop">B$ <b id="boltsAmt">0</b> Bolts</button>
+            <button class="wallet" id="walletBtn" title="Open the shop">B$ <b id="blobcashAmt">0</b> Blobcash</button>
             <button class="btn small ghost" id="shopBtn">🛍 Shop</button>
             <button class="btn small ghost" id="editorBtn">🗺 Map Editor</button>
           </div>
@@ -62,7 +63,7 @@ export function renderPortal(app: HTMLElement) {
         <div class="game-grid" id="grid"></div>
         <div id="community"></div>
         <p class="portal-foot">
-          Boxcade Engine v0.2 — classic platform controls + gamenomics (earn Bolts by playing, spend it in the shop),
+          Blobcade Engine v0.2 — classic platform controls + gamenomics (earn Blobcash by playing, spend it in the shop),
           a voxel build mode, an arena-shooter arsenal with bots, real-time multiplayer with chat,
           a ~25-line game SDK, and a map editor that reads/writes plain text files.<br/>
           Start the room server with <code>npm run server</code> for multiplayer.
@@ -75,13 +76,13 @@ export function renderPortal(app: HTMLElement) {
   nick.addEventListener('change', () => {
     const v = nick.value.trim().slice(0, 16) || playerName()
     nick.value = v
-    localStorage.setItem('boxcade.name', v)
+    localStorage.setItem('blobcade.name', v)
   })
 
-  const boltsAmt = document.getElementById('boltsAmt')!
-  const refreshBolts = () => { boltsAmt.textContent = String(economy.balance) }
-  refreshBolts()
-  const unsub = economy.onChange(refreshBolts)
+  const blobcashAmt = document.getElementById('blobcashAmt')!
+  const refreshBlobcash = () => { blobcashAmt.textContent = String(economy.balance) }
+  refreshBlobcash()
+  const unsub = economy.onChange(refreshBlobcash)
   window.addEventListener('hashchange', () => unsub(), { once: true })
 
   // daily login bonus — the classic retention mechanic
@@ -89,7 +90,7 @@ export function renderPortal(app: HTMLElement) {
   if (daily > 0) {
     const banner = document.createElement('div')
     banner.className = 'daily-banner'
-    banner.textContent = `🎁 Daily bonus: +${daily} Bolts!`
+    banner.textContent = `🎁 Daily bonus: +${daily} Blobcash!`
     document.querySelector('.portal-inner')!.prepend(banner)
     setTimeout(() => banner.remove(), 5000)
   }
@@ -125,7 +126,7 @@ export function renderPortal(app: HTMLElement) {
   // server reachability badge (pure cosmetics — games work offline too)
   const badge = document.getElementById('netState')!
   try {
-    const ws = new WebSocket(`ws://${location.hostname}:8081`)
+    const ws = new WebSocket(wsUrl())
     const timer = setTimeout(() => { try { ws.close() } catch { /* noop */ } }, 1500)
     ws.onopen = () => {
       badge.textContent = '🟢 multiplayer server online'
@@ -143,7 +144,7 @@ export function renderPortal(app: HTMLElement) {
 
 // ---------------- My Games (local draft shelf) ----------------
 // The local draft shelf: cards for everything in listDrafts() with Play / Edit
-// / Share / Duplicate / Delete, plus a New-game button and .boxcade.json
+// / Share / Duplicate / Delete, plus a New-game button and .blobcade.json
 // import (file picker + drag-drop). Draft name/emoji/genre are USER content
 // and are ALWAYS written via textContent — never interpolated into innerHTML.
 
@@ -179,7 +180,7 @@ function renderMyGames(mountEl: HTMLElement) {
   // hidden file input — the Import button and drag-drop both feed importFile()
   const fileInput = document.createElement('input')
   fileInput.type = 'file'
-  fileInput.accept = '.json,.boxcade.json,application/json'
+  fileInput.accept = '.json,.blobcade.json,.boxcade.json,application/json'
   fileInput.hidden = true
   mountEl.appendChild(fileInput)
 
@@ -372,7 +373,7 @@ function buildDraftCard(d: DraftEntry, rerender: () => void): HTMLElement {
   const rec = publishRecordFor(d.key)
   if (rec) {
     pub.textContent = '🚀 Republish'
-    // creator cut: show + claim Bolts this game earned from plays/likes
+    // creator cut: show + claim Blobcash this game earned from plays/likes
     void getEarnings(rec.id, rec.token).then((e) => {
       if (e.accrued <= 0) return
       const claim = document.createElement('button')
@@ -400,7 +401,7 @@ function buildDraftCard(d: DraftEntry, rerender: () => void): HTMLElement {
     pub.textContent = '…'
     try {
       const existing = publishRecordFor(d.key)
-      const author = localStorage.getItem('boxcade.name') ?? 'anonymous'
+      const author = localStorage.getItem('blobcade.name') ?? 'anonymous'
       let id = existing?.id
       if (existing) {
         await republishGame(existing.id, existing.token, doc)
@@ -453,7 +454,7 @@ function buildDraftCard(d: DraftEntry, rerender: () => void): HTMLElement {
 }
 
 // Share a draft: small enough → copy a share link to the clipboard; too big →
-// download the doc as a .boxcade.json file with an inline notice.
+// download the doc as a .blobcade.json file with an inline notice.
 function shareDraft(
   d: DraftEntry,
   shareBtn: HTMLButtonElement,
@@ -482,7 +483,7 @@ function downloadDoc(doc: object, name: string): void {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `${slugifyName(name)}.boxcade.json`
+  a.download = `${slugifyName(name)}.blobcade.json`
   document.body.appendChild(a)
   a.click()
   a.remove()
@@ -621,7 +622,7 @@ async function renderCommunity(mountEl: HTMLElement, sort: 'new' | 'plays' | 'li
   }
 }
 
-// ---------------- the shop (Bolts gamenomics) ----------------
+// ---------------- the shop (Blobcash gamenomics) ----------------
 function openShop() {
   const overlay = document.createElement('div')
   overlay.className = 'overlay-screen shop-overlay'
@@ -634,10 +635,10 @@ function openShop() {
     card.innerHTML = `
       <div class="shop-head">
         <h2>🛍 Avatar Shop</h2>
-        <div class="wallet">B$ <b>${economy.balance}</b> Bolts</div>
+        <div class="wallet">B$ <b>${economy.balance}</b> Blobcash</div>
         <button class="btn small ghost" id="shopClose">✕</button>
       </div>
-      <p class="shop-sub">Earn Bolts by playing: coins +1 · kills +10 · captures +50 · wins +25–150 · daily login +100.</p>
+      <p class="shop-sub">Earn Blobcash by playing: coins +1 · kills +10 · captures +50 · wins +25–150 · daily login +100.</p>
       <div class="shop-grid" id="shopGrid"></div>`
     const grid = card.querySelector('#shopGrid')!
     for (const item of CATALOG) {
@@ -657,7 +658,7 @@ function openShop() {
         if (!owned) {
           const res = economy.buy(item.id)
           if (!res.ok) {
-            btn.textContent = res.reason === 'not enough Bolts' ? 'Need more B$' : 'Hmm…'
+            btn.textContent = res.reason === 'not enough Blobcash' ? 'Need more B$' : 'Hmm…'
             setTimeout(render, 900)
             return
           }

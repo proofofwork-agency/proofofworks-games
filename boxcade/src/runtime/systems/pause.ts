@@ -65,17 +65,17 @@ export function createPauseSystem(deps: {
         const blob = new Blob([voxels.serialize()], { type: 'application/json' })
         const a = document.createElement('a')
         a.href = URL.createObjectURL(blob)
-        a.download = `boxcade-${def.meta.id}-world.json`
+        a.download = `blobcade-${def.meta.id}-world.json`
         a.click()
         URL.revokeObjectURL(a.href)
       }
       card.appendChild(save)
     }
     // test-play sessions (Studio/editor) leave back to where they came from
-    const returnTo = localStorage.getItem('boxcade.returnTo')
+    const returnTo = localStorage.getItem('blobcade.returnTo')
     const home = btn(returnTo ? '⬅ Back to Studio' : 'Leave game', 'ghost')
     home.onclick = () => {
-      if (returnTo) localStorage.removeItem('boxcade.returnTo')
+      if (returnTo) localStorage.removeItem('blobcade.returnTo')
       location.hash = returnTo ?? ''
     }
     card.appendChild(home)
@@ -84,7 +84,7 @@ export function createPauseSystem(deps: {
   }
 
   return {
-    id: 'boxcade:pause',
+    id: 'blobcade:pause',
     get isOpen() { return pauseEl !== null },
     toggle,
   }

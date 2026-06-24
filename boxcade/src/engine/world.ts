@@ -1,4 +1,4 @@
-// The Parts world — Boxcade's brick-building model. Every part is a
+// The Parts world — Blobcade's brick-building model. Every part is a
 // rounded box with a material preset; behaviors animate parts kinematically
 // (the physics layer reads their per-frame deltas to carry the player along).
 
@@ -96,6 +96,25 @@ function roundedBox(sx: number, sy: number, sz: number): RoundedBoxGeometry {
 
 const matCache = new Map<string, THREE.Material>()
 
+const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
+const RGB_COLOR_RE = /^rgba?\(\s*[-+]?(?:\d+|\d*\.\d+)%?\s*,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*(?:,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*)?\)$/i
+const HSL_COLOR_RE = /^hsla?\(\s*[-+]?(?:\d+|\d*\.\d+)(?:deg|rad|turn)?\s*,\s*[-+]?(?:\d+|\d*\.\d+)%\s*,\s*[-+]?(?:\d+|\d*\.\d+)%\s*(?:,\s*[-+]?(?:\d+|\d*\.\d+)%?\s*)?\)$/i
+const NAMED_COLORS = new Set(Object.keys(THREE.Color.NAMES))
+
+function isColorString(value: string): boolean {
+  return HEX_COLOR_RE.test(value)
+    || RGB_COLOR_RE.test(value)
+    || HSL_COLOR_RE.test(value)
+    || NAMED_COLORS.has(value.toLowerCase())
+}
+
+export function safeColor(input: unknown, fallback = '#ffffff'): THREE.Color {
+  const value = typeof input === 'string' ? input.trim() : ''
+  if (value && isColorString(value)) return new THREE.Color(value)
+  const fallbackValue = fallback.trim()
+  return new THREE.Color(isColorString(fallbackValue) ? fallbackValue : '#ffffff')
+}
+
 /**
  * Registry-pattern extension point: add your own material kind, then use it
  * anywhere a MaterialKind goes (parts, prefabs, text-map handlers).
@@ -110,7 +129,7 @@ export function registerMaterial(
   factory: (color: THREE.Color) => THREE.Material,
   opts: { reflective?: boolean } = {},
 ) {
-  if (customMaterials.has(kind)) console.warn(`[boxcade] registerMaterial: overwriting '${kind}'`)
+  if (customMaterials.has(kind)) console.warn(`[blobcade] registerMaterial: overwriting '${kind}'`)
   customMaterials.set(kind, factory)
   if (opts.reflective) AUTO_REFLECT.add(kind)
 }
@@ -120,7 +139,7 @@ export function partMaterial(color: string, kind: MaterialKind = 'plastic'): THR
   let m = matCache.get(key)
   if (m) return m
 
-  const c = new THREE.Color(color)
+  const c = safeColor(color, '#b8c4d0')
   const std = (opts: Partial<THREE.MeshStandardMaterialParameters>) =>
     new THREE.MeshStandardMaterial({ color: c, ...opts })
 
@@ -223,14 +242,14 @@ const behaviorFactories = new Map<string, (def: BehaviorDef) => Behavior>()
  * behavior type once and it works in every GameDoc, part def and editor.
  */
 export function registerBehavior(type: string, factory: (def: BehaviorDef) => Behavior) {
-  if (behaviorFactories.has(type)) console.warn(`[boxcade] registerBehavior: overwriting '${type}'`)
+  if (behaviorFactories.has(type)) console.warn(`[blobcade] registerBehavior: overwriting '${type}'`)
   behaviorFactories.set(type, factory)
 }
 
 export function behaviorFromDef(def: BehaviorDef): Behavior | null {
   const factory = behaviorFactories.get(def.type)
   if (!factory) {
-    console.warn(`[boxcade] behaviorFromDef: unknown behavior type '${def.type}'`)
+    console.warn(`[blobcade] behaviorFromDef: unknown behavior type '${def.type}'`)
     return null
   }
   return factory(def)
@@ -268,6 +287,7 @@ export class PartsWorld implements ColliderSource {
   reflective: THREE.Mesh[] = []
   /** non-solid gravity-multiplier regions (PartDef.gravityZone) */
   gravityZones: RuntimePart[] = []
+  private labels = new Set<THREE.Sprite>()
 
   add(def: PartDef): RuntimePart {
     const mesh = new THREE.Mesh(
@@ -319,6 +339,7 @@ export class PartsWorld implements ColliderSource {
     sprite.scale.set(8 * scale, 2 * scale, 1)
     sprite.position.set(at.x, at.y, at.z)
     this.group.add(sprite)
+    this.labels.add(sprite)
     return sprite
   }
 
@@ -382,5 +403,20 @@ export class PartsWorld implements ColliderSource {
       part.touch!(part)
       if (part.touchOnce) part.touch = null
     }
+  }
+
+  dispose() {
+    for (const label of this.labels) {
+      label.removeFromParent()
+      const mat = label.material as THREE.SpriteMaterial
+      mat.map?.dispose()
+      mat.dispose()
+    }
+    this.labels.clear()
+    for (const part of this.parts) part.removed = true
+    this.parts.length = 0
+    this.reflective.length = 0
+    this.gravityZones.length = 0
+    this.group.clear()
   }
 }

@@ -1,9 +1,9 @@
-// Squadfall Island — Boxcade's squad battle royale on a prison island.
+// Squadfall Island — Blobcade's squad battle royale on a prison island.
 // Genre conventions documented in docs/squadfall-design-notes.md: squadfall
 // respawns (the dead redeploy from the sky while a teammate lives),
 // rarity-tiered lootboxes, a cash economy with buy stations, armor plates,
 // and a shrinking gas circle. Ray-traced reflections on the ocean, piers and
-// metal decks. All geometry, names and rules expressed here are Boxcade
+// metal decks. All geometry, names and rules expressed here are Blobcade
 // originals — see README "Licensing & inspirations".
 
 import { defineGame, v3, type Vec3, type GameContext, type EntityApi, type PartHandle } from '../sdk'
@@ -478,7 +478,7 @@ export default defineGame({
       matchOver = true
       if (redIn) {
         ctx.celebrate('🏆 RED SQUAD WINS!')
-        ctx.earnBolts(200, 'squadfall victory')
+        ctx.earnBlobcash(200, 'squadfall victory')
       } else {
         ctx.hud.big('💀 YOUR SQUAD WAS WIPED', 3000)
         audio.death()
