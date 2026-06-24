@@ -1373,13 +1373,40 @@ function makeRemoteImpostor(name: string): THREE.Sprite {
   g.beginPath()
   g.ellipse(80, 204, 38, 10, 0, 0, Math.PI * 2)
   g.fill()
+  g.lineCap = 'round'
+  g.lineJoin = 'round'
+  // soft capsule limbs behind the torso
+  g.strokeStyle = '#2f81f7'
+  g.lineWidth = 18
+  g.beginPath()
+  g.moveTo(53, 92); g.lineTo(42, 144)
+  g.moveTo(107, 92); g.lineTo(118, 144)
+  g.stroke()
+  g.strokeStyle = '#253044'
+  g.lineWidth = 20
+  g.beginPath()
+  g.moveTo(66, 144); g.lineTo(58, 194)
+  g.moveTo(94, 144); g.lineTo(102, 194)
+  g.stroke()
   g.fillStyle = '#f2c84b'
-  g.fillRect(56, 28, 48, 48)
+  g.beginPath()
+  g.ellipse(80, 54, 26, 29, 0, 0, Math.PI * 2)
+  g.fill()
   g.fillStyle = '#2f81f7'
-  g.fillRect(48, 82, 64, 70)
-  g.fillStyle = '#253044'
-  g.fillRect(52, 152, 22, 42)
-  g.fillRect(86, 152, 22, 42)
+  g.beginPath()
+  g.ellipse(80, 112, 35, 47, 0, 0, Math.PI * 2)
+  g.fill()
+  // tiny face read: dark eyes and smile, still cheap at sprite distance
+  g.fillStyle = '#1a1a1a'
+  g.beginPath()
+  g.ellipse(70, 51, 4, 6, 0, 0, Math.PI * 2)
+  g.ellipse(90, 51, 4, 6, 0, 0, Math.PI * 2)
+  g.fill()
+  g.strokeStyle = '#1a1a1a'
+  g.lineWidth = 3
+  g.beginPath()
+  g.arc(80, 61, 10, Math.PI * 0.15, Math.PI * 0.85)
+  g.stroke()
   g.fillStyle = '#ffffff'
   g.font = '700 18px system-ui, sans-serif'
   g.textAlign = 'center'

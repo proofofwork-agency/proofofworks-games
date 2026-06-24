@@ -1,5 +1,5 @@
-// The Blobcade avatar: a friendly retro blocky character built from
-// rounded boxes, with a canvas-drawn face, procedural walk/jump animation,
+// The Blobcade avatar: a friendly blob character built from
+// cached soft primitives, with a canvas-drawn face, procedural walk/jump animation,
 // a floating name tag and chat bubbles. No rigs, no assets — pure code.
 
 import * as THREE from 'three'
@@ -116,9 +116,65 @@ function textSprite(text: string, opts: { font?: string; pad?: number; bg?: stri
   return sprite
 }
 
+// ---- shared avatar geometry cache ----
+// Avatar meshes share these geometries across local + remote players. Per-avatar
+// teardown must never dispose them; only per-instance textures/materials are owned.
+const avatarGeoCache = new Map<string, THREE.BufferGeometry>()
+
+function cachedGeo<T extends THREE.BufferGeometry>(key: string, make: () => T): T {
+  let g = avatarGeoCache.get(key) as T | undefined
+  if (!g) {
+    g = make()
+    avatarGeoCache.set(key, g)
+  }
+  return g
+}
+
+function avatarBox(w: number, h: number, d: number): THREE.BoxGeometry {
+  return cachedGeo(`box:${w.toFixed(3)}|${h.toFixed(3)}|${d.toFixed(3)}`, () => new THREE.BoxGeometry(w, h, d))
+}
+
+function avatarCapsule(radius: number, height: number, capSegments = 4, radialSegments = 8): THREE.CapsuleGeometry {
+  const r = Math.max(0.01, radius)
+  const length = Math.max(0.001, height - r * 2)
+  return cachedGeo(
+    `capsule:${r.toFixed(3)}|${height.toFixed(3)}|${capSegments}|${radialSegments}`,
+    () => new THREE.CapsuleGeometry(r, length, capSegments, radialSegments),
+  )
+}
+
+function avatarEllipsoid(rx: number, ry: number, rz: number, widthSegments = 16, heightSegments = 12): THREE.SphereGeometry {
+  return cachedGeo(
+    `ellipsoid:${rx.toFixed(3)}|${ry.toFixed(3)}|${rz.toFixed(3)}|${widthSegments}|${heightSegments}`,
+    () => {
+      const g = new THREE.SphereGeometry(1, widthSegments, heightSegments)
+      g.scale(rx, ry, rz)
+      return g
+    },
+  )
+}
+
+function avatarCylinder(radiusTop: number, radiusBottom: number, height: number, radialSegments = 16): THREE.CylinderGeometry {
+  return cachedGeo(
+    `cylinder:${radiusTop.toFixed(3)}|${radiusBottom.toFixed(3)}|${height.toFixed(3)}|${radialSegments}`,
+    () => new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments, 1),
+  )
+}
+
+function avatarTorus(radius: number, tube: number, radialSegments = 8, tubularSegments = 24): THREE.TorusGeometry {
+  return cachedGeo(
+    `torus:${radius.toFixed(3)}|${tube.toFixed(3)}|${radialSegments}|${tubularSegments}`,
+    () => new THREE.TorusGeometry(radius, tube, radialSegments, tubularSegments),
+  )
+}
+
+function avatarPlane(w: number, h: number): THREE.PlaneGeometry {
+  return cachedGeo(`plane:${w.toFixed(3)}|${h.toFixed(3)}`, () => new THREE.PlaneGeometry(w, h))
+}
+
 function limb(w: number, h: number, d: number, color: string): { pivot: THREE.Group; mesh: THREE.Mesh } {
   const pivot = new THREE.Group()
-  const geo = new THREE.BoxGeometry(w, h, d, 1, 1, 1)
+  const geo = avatarCapsule(Math.min(w, d) / 2, h)
   const mesh = new THREE.Mesh(geo, partMaterial(color, 'plastic'))
   mesh.position.y = -h / 2
   mesh.castShadow = true
@@ -174,15 +230,15 @@ export class Avatar {
     this.body = new THREE.Group()
     this.group.add(this.body)
 
-    // torso: 0.85w x 0.95h x 0.5d, top at y=1.55 (legs 0.6 tall below)
-    const torsoGeo = new THREE.BoxGeometry(0.85, 0.95, 0.5)
+    // torso: soft ellipsoid filling roughly the old 0.85w x 0.95h x 0.5d silhouette
+    const torsoGeo = avatarEllipsoid(0.43, 0.52, 0.27)
     this.torso = new THREE.Mesh(torsoGeo, partMaterial(this.shirtColor, 'plastic'))
     this.torso.position.y = 1.125
     this.torso.castShadow = true
     this.body.add(this.torso)
 
-    // head
-    const headGeo = new THREE.BoxGeometry(0.62, 0.62, 0.62)
+    // head: round crown with a tiny vertical squash to keep the old height read
+    const headGeo = avatarEllipsoid(0.32, 0.33, 0.32)
     this.head = new THREE.Mesh(headGeo, partMaterial(SKIN, 'plastic'))
     this.head.position.y = 1.95
     this.head.castShadow = true
@@ -191,7 +247,7 @@ export class Avatar {
     // face (front of head, -Z is forward... we use +Z forward for the model and rotate)
     if (!faceTex) faceTex = makeFaceTexture()
     this.face = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.56, 0.56),
+      avatarPlane(0.48, 0.42),
       // polygonOffset + a real gap to the head's front face — without both,
       // depth precision at distance z-fights the plane into a visible seam
       new THREE.MeshBasicMaterial({
@@ -199,7 +255,7 @@ export class Avatar {
         polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
       }),
     )
-    this.face.position.set(0, 1.95, 0.327)
+    this.face.position.set(0, 1.96, 0.342)
     this.body.add(this.face)
 
     // arms (pivot at shoulder y=1.55)
@@ -213,10 +269,10 @@ export class Avatar {
     this.body.add(this.leftArm, this.rightArm)
 
     // hands (skin tone tips) — slightly proud of the sleeve so no face is
-    // coplanar with the arm box (coplanar faces z-fight = flickering hands)
+    // coplanar with the arm capsule (coplanar faces z-fight = flickering hands)
     for (const arm of [la, ra]) {
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(armW + 0.025, 0.18, armW + 0.025), partMaterial(SKIN, 'plastic'))
-      hand.position.y = -0.825
+      const hand = new THREE.Mesh(avatarEllipsoid(0.155, 0.135, 0.155, 12, 8), partMaterial(SKIN, 'plastic'))
+      hand.position.y = -0.875
       arm.pivot.add(hand)
     }
 
@@ -291,42 +347,42 @@ export class Avatar {
     if (!hatId) return
 
     const g = new THREE.Group()
-    // head: center y=1.95, half-size 0.31 → top at 2.26, front (+Z) at 0.315
-    const TOP = 2.26
+    // head: center y=1.95, vertical radius 0.33 → crown/top at about 2.28.
+    const TOP = 2.28
     switch (hatId) {
       case 'hat-cap': {
         const col = color ?? '#e74c3c'
-        const dome = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.22, 0.6), partMaterial(col, 'plastic'))
-        dome.position.y = TOP + 0.08
+        const dome = new THREE.Mesh(avatarEllipsoid(0.33, 0.11, 0.31, 16, 8), partMaterial(col, 'plastic'))
+        dome.position.y = TOP + 0.04
         dome.castShadow = true
         // brim juts forward over the face (+Z)
-        const brim = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.3), partMaterial(col, 'plastic'))
-        brim.position.set(0, TOP + 0.02, 0.42)
+        const brim = new THREE.Mesh(avatarEllipsoid(0.26, 0.035, 0.15, 12, 6), partMaterial(col, 'plastic'))
+        brim.position.set(0, TOP - 0.02, 0.34)
         brim.castShadow = true
         g.add(dome, brim)
         break
       }
       case 'hat-tophat': {
         const col = color ?? '#1c2733'
-        const brim = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.06, 0.66), partMaterial(col, 'plastic'))
-        brim.position.y = TOP + 0.03
-        const crown = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.4, 0.46), partMaterial(col, 'plastic'))
-        crown.position.y = TOP + 0.26
+        const brim = new THREE.Mesh(avatarCylinder(0.38, 0.38, 0.06, 20), partMaterial(col, 'plastic'))
+        brim.position.y = TOP + 0.01
+        const crown = new THREE.Mesh(avatarCylinder(0.24, 0.25, 0.42, 20), partMaterial(col, 'plastic'))
+        crown.position.y = TOP + 0.25
         brim.castShadow = crown.castShadow = true
         g.add(brim, crown)
         break
       }
       case 'hat-crown': {
         const col = color ?? '#ffc94d'
-        // thin gold ring (a flat box band) with 3 little spikes
-        const band = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.16, 0.56), partMaterial(col, 'gold'))
-        band.position.y = TOP + 0.08
+        // thin gold ring with 3 little rounded spikes
+        const band = new THREE.Mesh(avatarCylinder(0.33, 0.34, 0.13, 18), partMaterial(col, 'gold'))
+        band.position.y = TOP + 0.05
         band.castShadow = true
         g.add(band)
-        const spike = () => new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.16, 0.1), partMaterial(col, 'gold'))
+        const spike = () => new THREE.Mesh(avatarEllipsoid(0.055, 0.1, 0.055, 8, 6), partMaterial(col, 'gold'))
         for (const dx of [-0.2, 0, 0.2]) {
           const s = spike()
-          s.position.set(dx, TOP + 0.22, 0)
+          s.position.set(dx, TOP + 0.2, 0)
           s.castShadow = true
           g.add(s)
         }
@@ -336,9 +392,9 @@ export class Avatar {
         const col = color ?? '#ffe9a8'
         const haloMat = new THREE.MeshStandardMaterial({ color: col, emissive: new THREE.Color(col), emissiveIntensity: 1.6, roughness: 0.4 })
         haloMat.userData.ownedByAvatar = true // inline material — safe to dispose (see disposeGroup)
-        const halo = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.05, 10, 24), haloMat)
+        const halo = new THREE.Mesh(avatarTorus(0.32, 0.045, 8, 24), haloMat)
         halo.rotation.x = Math.PI / 2 // lie flat, ring parallel to the ground
-        this.haloBaseY = TOP + 0.34
+        this.haloBaseY = TOP + 0.32
         halo.position.y = this.haloBaseY
         this.halo = halo
         g.add(halo)
@@ -351,14 +407,14 @@ export class Avatar {
     this.hatGroup = g
   }
 
-  /** put a blocky weapon prop in the right hand (combat games) */
+  /** put a simple weapon prop in the right hand (combat games) */
   holdWeapon(accent = '#7df9ff') {
     if (this.weaponProp) return
     const grip = new THREE.Group()
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.22, 0.6), partMaterial('#2e3540', 'metal'))
+    const body = new THREE.Mesh(avatarBox(0.17, 0.22, 0.6), partMaterial('#2e3540', 'metal'))
     body.position.set(0, -0.78, 0.28)
     body.castShadow = true
-    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.36), partMaterial(accent, 'neon'))
+    const barrel = new THREE.Mesh(avatarBox(0.09, 0.09, 0.36), partMaterial(accent, 'neon'))
     barrel.position.set(0, -0.75, 0.72)
     grip.add(body, barrel)
     this.rightArm.add(grip)
@@ -416,7 +472,7 @@ export class Avatar {
 
   say(text: string) {
     if (this.bubble) {
-      this.group.remove(this.bubble)
+      disposeSprite(this.bubble)
       this.bubble = null
     }
     this.bubble = textSprite(text.slice(0, 60), { bg: 'rgba(255,255,255,0.95)', fg: '#15202b' })
@@ -491,12 +547,17 @@ export class Avatar {
     }
 
     if (this.bubble && performance.now() > this.bubbleUntil) {
-      this.group.remove(this.bubble)
+      disposeSprite(this.bubble)
       this.bubble = null
     }
   }
 
   dispose() {
+    if (this.flashT > 0) {
+      for (const [mesh, mat] of this.flashed) mesh.material = mat
+      this.flashT = 0
+      this.flashed = []
+    }
     if (this.hatGroup) {
       this.body.remove(this.hatGroup)
       disposeGroup(this.hatGroup)
@@ -504,6 +565,19 @@ export class Avatar {
       this.halo = null
     }
     if (this.ownFaceTex) { this.ownFaceTex.dispose(); this.ownFaceTex = null }
+    const faceMat = this.face.material as THREE.MeshBasicMaterial
+    faceMat.map = null
+    faceMat.dispose()
+    if (this.hpSprite) { disposeSprite(this.hpSprite); this.hpSprite = null }
+    this.hpTex = null
+    this.hpCanvas = null
+    if (this.nameSprite) { disposeSprite(this.nameSprite); this.nameSprite = null }
+    if (this.bubble) { disposeSprite(this.bubble); this.bubble = null }
+    if (this.weaponProp) {
+      this.rightArm.remove(this.weaponProp)
+      disposeGroup(this.weaponProp)
+      this.weaponProp = null
+    }
     this.group.removeFromParent()
   }
 }
@@ -513,19 +587,25 @@ function lerpA(a: number, b: number, t: number) {
 }
 
 /**
- * Free the per-instance GPU resources a cosmetic group owns. Geometries here
- * are always created fresh per mesh, so we dispose them. Box-hat materials come
- * from world.ts's shared partMaterial() cache and must NOT be disposed; only
- * materials we built inline and tagged (the halo) get freed.
+ * Free the per-instance GPU resources a cosmetic/prop group owns. Geometry is
+ * shared through avatarGeoCache and must never be disposed here. Materials from
+ * world.ts's partMaterial() cache are also shared; only inline tagged materials
+ * (currently the halo) are freed.
  */
 function disposeGroup(g: THREE.Group) {
   g.traverse((o) => {
     const m = o as THREE.Mesh
     if (!m.isMesh) return
-    m.geometry?.dispose()
     const mats = Array.isArray(m.material) ? m.material : [m.material]
     for (const mat of mats) {
       if (mat?.userData?.ownedByAvatar) mat.dispose()
     }
   })
+}
+
+function disposeSprite(sprite: THREE.Sprite) {
+  sprite.removeFromParent()
+  const mat = sprite.material as THREE.SpriteMaterial
+  mat.map?.dispose()
+  mat.dispose()
 }
