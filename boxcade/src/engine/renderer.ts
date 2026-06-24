@@ -30,8 +30,12 @@ export class Renderer {
   private ssr: SSRPass | null = null
   private gtao: GTAOPass | null = null
   private bloom: UnrealBloomPass
+  private output: OutputPass
+  private envRT: THREE.WebGLRenderTarget | null = null
+  private envSky: SkyDome | null = null
   private onResizeBound: () => void
   private host: HTMLElement
+  private disposed = false
 
   constructor(host: HTMLElement, presetName: string) {
     this.host = host
@@ -100,8 +104,10 @@ export class Renderer {
     try {
       const pmrem = new THREE.PMREMGenerator(this.renderer)
       const envScene = new THREE.Scene()
-      envScene.add(new SkyDome(this.preset).mesh)
+      this.envSky = new SkyDome(this.preset)
+      envScene.add(this.envSky.mesh)
       const envRT = pmrem.fromScene(envScene, 0.05, 1, 1100)
+      this.envRT = envRT
       this.scene.environment = envRT.texture
       this.scene.environmentIntensity = 0.5
       pmrem.dispose()
@@ -138,7 +144,8 @@ export class Renderer {
       0.88,
     )
     this.composer.addPass(this.bloom)
-    this.composer.addPass(new OutputPass())
+    this.output = new OutputPass()
+    this.composer.addPass(this.output)
 
     this.onResizeBound = () => this.onResize()
     window.addEventListener('resize', this.onResizeBound)
@@ -209,7 +216,22 @@ export class Renderer {
   }
 
   dispose() {
+    if (this.disposed) return
+    this.disposed = true
     window.removeEventListener('resize', this.onResizeBound)
+    this.disableReflections()
+    this.gtao?.dispose()
+    this.gtao = null
+    this.bloom.dispose()
+    this.output.dispose()
+    this.renderPass.dispose()
+    this.composer.dispose()
+    this.sky.dispose()
+    this.envSky?.dispose()
+    this.envSky = null
+    this.scene.environment = null
+    this.envRT?.dispose()
+    this.envRT = null
     this.renderer.dispose()
     this.renderer.domElement.remove()
   }

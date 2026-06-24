@@ -240,8 +240,12 @@ export function buildStudioUI(shell: HTMLElement, api: StudioApi, getSavedAt: ()
   tsB.onclick = () => api.downloadTypeScript()
   const shareB = btn('🔗 Share', 'ghost')
   shareB.onclick = async () => {
-    const res = await api.share()
-    api.toast(res.copied ? '🔗 Share link copied!' : '📦 Too big for a link — file downloaded')
+    try {
+      const res = await api.share()
+      api.toast(res.copied ? '🔗 Share link copied!' : '📦 Too big for a link — file downloaded')
+    } catch (err) {
+      api.toast(err instanceof Error ? `Could not share: ${err.message}` : 'Could not share this game.')
+    }
   }
   top.append(back, nameField, partChip, buildModeB, floorB, snapB, savedChip, undoB, redoB, helpB, txtB, jsonB, tsB, playB, shareB)
   shell.appendChild(top)

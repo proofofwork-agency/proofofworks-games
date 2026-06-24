@@ -26,6 +26,23 @@ describe('render safety fallbacks', () => {
     expect(colors[0]).toBeCloseTo(1)
     expect(colors[1]).toBeCloseTo(1)
     expect(colors[2]).toBeCloseTo(1)
+    fx.dispose()
+  })
+
+  it('disposes particle GPU resources idempotently', () => {
+    const scene = new THREE.Scene()
+    const fx = new Particles(scene)
+    let geoDisposed = 0
+    let matDisposed = 0
+    fx.points.geometry.addEventListener('dispose', () => { geoDisposed++ })
+    ;(fx.points.material as THREE.Material).addEventListener('dispose', () => { matDisposed++ })
+
+    fx.dispose()
+    fx.dispose()
+
+    expect(scene.children).not.toContain(fx.points)
+    expect(geoDisposed).toBe(1)
+    expect(matDisposed).toBe(1)
   })
 })
 

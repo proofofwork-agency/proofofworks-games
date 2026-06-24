@@ -287,6 +287,7 @@ export class PartsWorld implements ColliderSource {
   reflective: THREE.Mesh[] = []
   /** non-solid gravity-multiplier regions (PartDef.gravityZone) */
   gravityZones: RuntimePart[] = []
+  private labels = new Set<THREE.Sprite>()
 
   add(def: PartDef): RuntimePart {
     const mesh = new THREE.Mesh(
@@ -338,6 +339,7 @@ export class PartsWorld implements ColliderSource {
     sprite.scale.set(8 * scale, 2 * scale, 1)
     sprite.position.set(at.x, at.y, at.z)
     this.group.add(sprite)
+    this.labels.add(sprite)
     return sprite
   }
 
@@ -401,5 +403,20 @@ export class PartsWorld implements ColliderSource {
       part.touch!(part)
       if (part.touchOnce) part.touch = null
     }
+  }
+
+  dispose() {
+    for (const label of this.labels) {
+      label.removeFromParent()
+      const mat = label.material as THREE.SpriteMaterial
+      mat.map?.dispose()
+      mat.dispose()
+    }
+    this.labels.clear()
+    for (const part of this.parts) part.removed = true
+    this.parts.length = 0
+    this.reflective.length = 0
+    this.gravityZones.length = 0
+    this.group.clear()
   }
 }

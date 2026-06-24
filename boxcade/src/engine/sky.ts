@@ -240,4 +240,10 @@ export class SkyDome {
     this.mat.uniforms.uTime.value = t
     this.mesh.position.copy(cameraPos)
   }
+
+  dispose() {
+    this.mesh.removeFromParent()
+    this.mesh.geometry.dispose()
+    this.mat.dispose()
+  }
 }

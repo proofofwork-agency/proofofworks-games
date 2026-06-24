@@ -87,6 +87,7 @@ export class VoxelWorld implements ColliderSource {
   private opaqueMat: THREE.MeshStandardMaterial
   private waterMat: THREE.MeshStandardMaterial
   private glowMat: THREE.MeshStandardMaterial
+  private disposed = false
 
   constructor(sx = 96, sy = 42, sz = 96, seaLevel = 10) {
     this.sx = sx
@@ -303,6 +304,25 @@ export class VoxelWorld implements ColliderSource {
       this.group.add(mesh)
       this.chunkMeshes[ci][i] = mesh
     })
+  }
+
+  dispose() {
+    if (this.disposed) return
+    this.disposed = true
+    for (const chunk of this.chunkMeshes) {
+      for (let i = 0; i < chunk.length; i++) {
+        const m = chunk[i]
+        if (!m) continue
+        this.group.remove(m)
+        m.geometry.dispose()
+        chunk[i] = null
+      }
+    }
+    this.waterMeshes.length = 0
+    this.opaqueMat.dispose()
+    this.waterMat.dispose()
+    this.glowMat.dispose()
+    this.group.clear()
   }
 
   private cornerAO(x: number, y: number, z: number, f: Face, corner: [number, number, number]): number {

@@ -20,9 +20,11 @@ export class Particles {
   points: THREE.Points
   private pool: P[] = []
   private geo: THREE.BufferGeometry
+  private mat: THREE.ShaderMaterial
   private positions: Float32Array
   private colors: Float32Array
   private sizes: Float32Array
+  private disposed = false
 
   constructor(scene: THREE.Scene) {
     this.positions = new Float32Array(MAX * 3)
@@ -33,7 +35,7 @@ export class Particles {
     this.geo.setAttribute('color', new THREE.BufferAttribute(this.colors, 3))
     this.geo.setAttribute('psize', new THREE.BufferAttribute(this.sizes, 1))
 
-    const mat = new THREE.ShaderMaterial({
+    this.mat = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       vertexColors: true,
@@ -71,7 +73,7 @@ export class Particles {
       })
     }
 
-    this.points = new THREE.Points(this.geo, mat)
+    this.points = new THREE.Points(this.geo, this.mat)
     this.points.frustumCulled = false
     scene.add(this.points)
   }
@@ -160,5 +162,13 @@ export class Particles {
     this.geo.attributes.position.needsUpdate = true
     this.geo.attributes.color.needsUpdate = true
     this.geo.attributes.psize.needsUpdate = true
+  }
+
+  dispose() {
+    if (this.disposed) return
+    this.disposed = true
+    this.points.removeFromParent()
+    this.geo.dispose()
+    this.mat.dispose()
   }
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import * as THREE from 'three'
 import { VoxelWorld, GRASS, STONE, AIR, WATER } from '../src/engine/voxel'
 
 describe('VoxelWorld serialize → deserialize round-trip', () => {
@@ -148,5 +149,34 @@ describe('VoxelWorld set / get / surfaceY', () => {
     // still no solid -> falls through to seaLevel + 1
     expect(w.surfaceY(5, 5)).toBe(5)
     expect(w.isWater(5, 0, 5)).toBe(true)
+  })
+
+  it('disposes live chunk geometry and owned materials idempotently', () => {
+    const w = new VoxelWorld(8, 8, 8, 4)
+    w.set(1, 1, 1, STONE)
+    w.set(2, 1, 1, WATER)
+    w.buildAll()
+
+    let geoDisposed = 0
+    let matDisposed = 0
+    const materials = new Set<THREE.Material>()
+    for (const child of w.group.children) {
+      const mesh = child as THREE.Mesh
+      mesh.geometry.addEventListener('dispose', () => { geoDisposed++ })
+      for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+        if (materials.has(mat)) continue
+        materials.add(mat)
+        mat.addEventListener('dispose', () => { matDisposed++ })
+      }
+    }
+
+    expect(w.group.children.length).toBeGreaterThan(0)
+    w.dispose()
+    w.dispose()
+
+    expect(w.group.children).toHaveLength(0)
+    expect(w.waterMeshes).toHaveLength(0)
+    expect(geoDisposed).toBeGreaterThan(0)
+    expect(matDisposed).toBe(materials.size)
   })
 })

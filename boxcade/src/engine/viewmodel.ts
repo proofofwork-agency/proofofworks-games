@@ -144,6 +144,7 @@ export class ViewModel {
   private flash: THREE.Mesh
   private flashTtl = 0
   private lamp: THREE.PointLight
+  private disposed = false
 
   constructor(camera: THREE.PerspectiveCamera) {
     // bottom-right of the view, like every shooter since 1996
@@ -240,6 +241,11 @@ export class ViewModel {
   }
 
   dispose() {
+    if (this.disposed) return
+    this.disposed = true
     this.group.removeFromParent()
+    this.flash.geometry.dispose()
+    for (const m of Array.isArray(this.flash.material) ? this.flash.material : [this.flash.material]) m.dispose()
+    this.models.clear()
   }
 }

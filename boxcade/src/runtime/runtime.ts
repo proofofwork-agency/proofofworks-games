@@ -877,6 +877,7 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
   // (local or remote) is also journaled so the HOST can replay the session's
   // edits to late joiners.
   const voxelEdits: Array<[number, number, number, number]> = []
+  const voxelReplayTimers: ReturnType<typeof setTimeout>[] = []
   const trackVoxelEdit = (x: number, y: number, z: number, t: number) => {
     if (voxelEdits.length < 20000) voxelEdits.push([x, y, z, t])
   }
@@ -901,7 +902,12 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     if (!voxels || !net.isHost || voxelEdits.length === 0) return
     const batches: Array<Array<[number, number, number, number]>> = []
     for (let i = 0; i < voxelEdits.length; i += 100) batches.push(voxelEdits.slice(i, i + 100))
-    batches.forEach((batch, i) => setTimeout(() => net.sendEvent('voxel:batch', batch), 150 * i))
+    batches.forEach((batch, i) => {
+      const id = setTimeout(() => {
+        if (!disposed) net.sendEvent('voxel:batch', batch)
+      }, 150 * i)
+      voxelReplayTimers.push(id)
+    })
   }
 
   const online = await net.connect(opts.roomKey ?? def.meta.id, playerName, def.maxPlayers)
@@ -918,7 +924,9 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
     netChip.onclick = () => {
       const base = location.hash.replace(/\?room=[A-Za-z0-9]+/, '')
       const invite = `${location.origin}${location.pathname}${base}?room=${net.roomCode}`
-      void navigator.clipboard.writeText(invite).then(() => hud.toast('🔗 Invite link copied — friends land in this room'))
+      void navigator.clipboard.writeText(invite)
+        .then(() => hud.toast('🔗 Invite link copied — friends land in this room'))
+        .catch(() => hud.toast('Clipboard blocked — copy the room code from the HUD.'))
     }
   } else {
     hudSys.netChip.textContent = online ? '🟢 Online' : '⚪ Offline (solo)'
@@ -1342,12 +1350,19 @@ export async function runGame(def: GameDef, mount: HTMLElement, playerName: stri
       disposed = true
       cancelAnimationFrame(raf)
       document.removeEventListener('keydown', globalKeys)
+      document.removeEventListener('pointerdown', unlockAudio)
+      document.removeEventListener('keydown', unlockAudio)
+      for (const id of voxelReplayTimers) clearTimeout(id)
+      voxelReplayTimers.length = 0
       for (const s of systems) s.dispose?.()
       events.clear()
       gameStore?.dispose()
       combat?.dispose()
       for (const id of [...remoteAvatars.keys()]) removeRemoteAvatar(id)
       viewmodel?.dispose()
+      fx.dispose()
+      parts.dispose()
+      voxels?.dispose()
       touch?.dispose()
       input.exitPointerLock()
       input.dispose()

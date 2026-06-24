@@ -237,12 +237,10 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
   let voxels: VoxelWorld | null = null
 
   function clearWorld() {
-    for (const p of [...parts.parts]) parts.remove(p)
-    parts.group.clear()
-    parts.parts.length = 0
-    parts.reflective.length = 0
+    parts.dispose()
     if (voxels) {
       R.scene.remove(voxels.group)
+      voxels.dispose()
       voxels = null
     }
     editableMeshes = []
@@ -1087,6 +1085,8 @@ export function renderStudio(app: HTMLElement, draftKeyIn: string | null): Studi
       document.removeEventListener('focusout', onFocusOut)
       ui.dispose()
       input.dispose()
+      disposeGhost()
+      clearWorld()
       R.dispose()
       app.innerHTML = ''
     },
