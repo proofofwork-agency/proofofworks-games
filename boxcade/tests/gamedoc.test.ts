@@ -2,11 +2,14 @@
 // and the DB, so the validator's accept/warn/reject behavior is contract.
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { validateGameDoc, GAMEDOC_VERSION, GAMEDOC_LIMITS, slugifyName } from '../src/sdk/gamedoc'
 import { decodeGameDoc, encodeGameDoc } from '../src/sdk/codec'
 import { RESERVED_EVENT_PREFIXES } from '../src/sdk/rules'
 
 const minimal = () => ({ blobcade: 'gamedoc', v: 1, meta: { name: 'Test' } })
+const fixture = (name: string) =>
+  JSON.parse(readFileSync(new URL(`./fixtures/gamedoc/${name}`, import.meta.url), 'utf8')) as Record<string, unknown>
 
 describe('validateGameDoc', () => {
   it('accepts a minimal valid doc', () => {
@@ -58,6 +61,38 @@ describe('validateGameDoc', () => {
     const res = validateGameDoc({ ...minimal(), v: GAMEDOC_VERSION + 1 })
     expect(res.ok).toBe(false)
     expect(res.errors.join(' ')).toMatch(/newer Blobcade/)
+  })
+
+  it('round-trips the canonical current-version fixture', async () => {
+    const doc = fixture('current-v2.json')
+    expect(doc.v).toBe(GAMEDOC_VERSION)
+
+    const before = validateGameDoc(doc)
+    expect(before.ok, before.errors.join('\n')).toBe(true)
+
+    const payload = await encodeGameDoc(before.doc!)
+    const decoded = await decodeGameDoc(payload)
+    expect(decoded).toEqual(before.doc)
+
+    const after = validateGameDoc(decoded)
+    expect(after.ok, after.errors.join('\n')).toBe(true)
+  })
+
+  it('rejects the future-version fixture with a clear update message', () => {
+    const res = validateGameDoc(fixture('future-v999.json'))
+    expect(res.ok).toBe(false)
+    expect(res.errors.join(' ')).toMatch(/newer Blobcade/)
+    expect(res.errors.join(' ')).toMatch(/refresh|update/)
+  })
+
+  it.each([
+    ['missing-version.json', /missing or invalid version number v/],
+    ['invalid-version.json', /missing or invalid version number v/],
+    ['too-old-v0.json', /unsupported\/too-old GameDoc version v0/],
+  ])('rejects %s with a predictable version error', (file, message) => {
+    const res = validateGameDoc(fixture(file))
+    expect(res.ok).toBe(false)
+    expect(res.errors.join(' ')).toMatch(message)
   })
 
   it('requires meta.name', () => {

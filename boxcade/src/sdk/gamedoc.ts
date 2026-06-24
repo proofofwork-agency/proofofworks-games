@@ -230,11 +230,11 @@ export function validateGameDoc(input: unknown): GameDocValidation {
     delete d.boxcade
   }
   if (!Number.isInteger(d.v)) {
-    err('missing version number v')
+    err('missing or invalid version number v')
   } else if ((d.v as number) > GAMEDOC_VERSION) {
     err(`this game was made with a newer Blobcade (doc v${d.v}, this build understands v${GAMEDOC_VERSION}) — refresh / update to play it`)
   } else if ((d.v as number) < 1) {
-    err(`bad version v${d.v}`)
+    err(`unsupported/too-old GameDoc version v${d.v} — this build supports v1–v${GAMEDOC_VERSION}`)
   }
 
   validateDocBody(d, err, warn, false, '')
