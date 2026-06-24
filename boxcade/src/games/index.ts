@@ -6,12 +6,13 @@ import type { GameDef } from '../sdk'
 import skyObby from './sky-obby'
 import facingTowers from './facing-towers'
 import squadfall from './squadfall'
+import riftYard from './rift-yard'
 import voxelIsland from './voxel-island'
 import castleRun from './castle-run'
 import goldRunner from './gold-runner'
 import starter from './starter'
 
-export const GAMES: GameDef[] = [squadfall, facingTowers, skyObby, voxelIsland, castleRun, goldRunner, starter]
+export const GAMES: GameDef[] = [squadfall, facingTowers, riftYard, skyObby, voxelIsland, castleRun, goldRunner, starter]
 
 export function findGame(id: string): GameDef | undefined {
   return GAMES.find((g) => g.meta.id === id)
