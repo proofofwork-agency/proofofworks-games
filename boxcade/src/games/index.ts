@@ -8,9 +8,10 @@ import facingTowers from './facing-towers'
 import squadfall from './squadfall'
 import voxelIsland from './voxel-island'
 import castleRun from './castle-run'
+import cinemaCarnage from './cinema-carnage'
 import starter from './starter'
 
-export const GAMES: GameDef[] = [squadfall, facingTowers, skyObby, voxelIsland, castleRun, starter]
+export const GAMES: GameDef[] = [squadfall, facingTowers, skyObby, voxelIsland, castleRun, cinemaCarnage, starter]
 
 export function findGame(id: string): GameDef | undefined {
   return GAMES.find((g) => g.meta.id === id)
