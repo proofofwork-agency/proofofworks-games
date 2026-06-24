@@ -9,6 +9,9 @@
     "blobcade:dev": "npm --workspace blobcade run dev",
     "blobcade:client": "npm --workspace blobcade run client",
     "blobcade:test": "npm --workspace blobcade test",
-    "blobcade:build": "npm --workspace blobcade run build"
+    "blobcade:build": "npm --workspace blobcade run build",
+    "tank-battle:dev": "npm --workspace tank-battle run dev",
+    "tank-battle:build": "npm --workspace tank-battle run build",
+    "tank-battle:typecheck": "npm --workspace tank-battle run typecheck"
   }
 }
