@@ -320,7 +320,7 @@ function validateDocBody(
     } else if (d.weapons.length > GAMEDOC_LIMITS.weapons) {
       err(`${pathPrefix}too many weapons (${d.weapons.length}, max ${GAMEDOC_LIMITS.weapons})`)
     } else {
-      d.weapons.forEach((wp, i) => validateWeapon(wp, `${pathPrefix}weapons[${i}]`, err))
+      d.weapons.forEach((wp, i) => validateWeapon(wp, `${pathPrefix}weapons[${i}]`, err, warn))
     }
   }
 
@@ -506,6 +506,7 @@ function validatePart(p: unknown, path: string, err: (m: string) => void, warn: 
       && part.rotY !== undefined && !isNum(part.rotY)) {
     err(`${path}: rotY must be a number (radians)`)
   }
+  warnHexColor(part, path, 'color', warn)
 
   if (kind === 'part') {
     validateSize(part.size, `${path}: size`, err)
@@ -630,7 +631,7 @@ function validateRule(r: unknown, path: string, err: (m: string) => void, warn: 
   })
 }
 
-function validateWeapon(wp: unknown, path: string, err: (m: string) => void) {
+function validateWeapon(wp: unknown, path: string, err: (m: string) => void, warn: (m: string) => void) {
   if (typeof wp !== 'object' || wp === null || Array.isArray(wp)) return err(`${path}: not an object`)
   const w = wp as Record<string, unknown>
 
@@ -654,6 +655,7 @@ function validateWeapon(wp: unknown, path: string, err: (m: string) => void) {
   if (w.spread !== undefined && !isNum(w.spread)) err(`${path}: spread must be a number`)
   if (w.range !== undefined && !isNumIn(w.range, 0, 400)) err(`${path}: range must be a number ≤400`)
   checkOptStr(w, path, 'beamColor', GAMEDOC_LIMITS.ref, err)
+  warnHexColor(w, path, 'beamColor', warn)
   if (w.beamWidth !== undefined && !isNum(w.beamWidth)) err(`${path}: beamWidth must be a number`)
   if (w.zoomFov !== undefined && !isNumIn(w.zoomFov, 8, 70)) err(`${path}: zoomFov must be a number 8–70`)
   if (w.ammoMax !== undefined && (!Number.isInteger(w.ammoMax) || (w.ammoMax as number) < 0 || (w.ammoMax as number) > 999)) {
@@ -672,6 +674,7 @@ function validateWeapon(wp: unknown, path: string, err: (m: string) => void) {
       if (!isNumIn(pr.speed, 1, 120)) err(`${path}.projectile: speed must be a number 1–120`)
       if (!isNumIn(pr.radius, 0.05, 1)) err(`${path}.projectile: radius must be a number 0.05–1`)
       checkOptStr(pr, `${path}.projectile`, 'color', GAMEDOC_LIMITS.ref, err)
+      warnHexColor(pr, `${path}.projectile`, 'color', warn)
       if (pr.gravity !== undefined && !isNum(pr.gravity)) err(`${path}.projectile: gravity must be a number`)
       if (pr.splash !== undefined && !isNumIn(pr.splash, 0, 10)) err(`${path}.projectile: splash must be a number ≤10`)
       if (pr.life !== undefined && !isNumIn(pr.life, 0, 10)) err(`${path}.projectile: life must be a number ≤10`)
@@ -684,6 +687,14 @@ function checkOptStr(obj: Record<string, unknown>, owner: string, key: string, m
   if (v === undefined) return
   if (typeof v !== 'string') err(`${owner}.${key} must be a string`)
   else if (v.length > max) err(`${owner}.${key} too long (max ${max})`)
+}
+
+function warnHexColor(obj: Record<string, unknown>, owner: string, key: string, warn: (m: string) => void) {
+  const v = obj[key]
+  if (v === undefined) return
+  if (typeof v !== 'string' || !HEX_COLOR_RE.test(v)) {
+    warn(`${owner}: ${key} "${String(v)}" should be #rrggbb (will render a default)`)
+  }
 }
 
 function isNum(v: unknown): v is number {

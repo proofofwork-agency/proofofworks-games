@@ -6,10 +6,14 @@ import { readFileSync } from 'node:fs'
 import { validateGameDoc, GAMEDOC_VERSION, GAMEDOC_LIMITS, slugifyName } from '../src/sdk/gamedoc'
 import { decodeGameDoc, encodeGameDoc } from '../src/sdk/codec'
 import { RESERVED_EVENT_PREFIXES } from '../src/sdk/rules'
+import { TEMPLATES } from '../src/templates'
+import { applyStudioMode, STUDIO_MODE_OPTIONS } from '../src/studio/modes'
+import type { GameDoc } from '../src/sdk/gamedoc'
 
 const minimal = () => ({ blobcade: 'gamedoc', v: 1, meta: { name: 'Test' } })
 const fixture = (name: string) =>
   JSON.parse(readFileSync(new URL(`./fixtures/gamedoc/${name}`, import.meta.url), 'utf8')) as Record<string, unknown>
+const colorWarnings = (warnings: string[]) => warnings.filter((w) => /should be #rrggbb/.test(w))
 
 describe('validateGameDoc', () => {
   it('accepts a minimal valid doc', () => {
@@ -95,6 +99,31 @@ describe('validateGameDoc', () => {
     expect(res.errors.join(' ')).toMatch(message)
   })
 
+  it('keeps first-party templates, Studio modes, and fixtures free of color warnings', () => {
+    const docs: Array<[string, unknown]> = TEMPLATES.map((t) => [`template:${t.id}`, t.make()])
+    const baseDoc = (): GameDoc => ({
+      blobcade: 'gamedoc',
+      v: 1,
+      meta: { name: 'Mode Test' },
+      parts: [{ kind: 'part', id: 'creator_block', at: [4, 1, 4], size: [2, 2, 2], color: '#abcdef' }],
+      rules: [],
+    })
+
+    for (const [mode] of STUDIO_MODE_OPTIONS) {
+      if (mode === 'custom') continue
+      const doc = baseDoc()
+      applyStudioMode(doc, mode, undefined)
+      docs.push([`studio-mode:${mode}`, doc])
+    }
+    docs.push(['fixture:current-v2', fixture('current-v2.json')])
+
+    for (const [name, doc] of docs) {
+      const res = validateGameDoc(doc)
+      expect(res.ok, `${name}: ${res.errors.join('\n')}`).toBe(true)
+      expect(colorWarnings(res.warnings), name).toEqual([])
+    }
+  })
+
   it('requires meta.name', () => {
     expect(validateGameDoc({ blobcade: 'gamedoc', v: 1, meta: {} }).ok).toBe(false)
     expect(validateGameDoc({ blobcade: 'gamedoc', v: 1 }).ok).toBe(false)
@@ -147,6 +176,31 @@ describe('validateGameDoc', () => {
     expect(bad([{ kind: 'water', at: [0, 0, 0], size: [8, 0] }]).ok).toBe(false)
     expect(bad([{ kind: 'button', at: [0, 0, 0] }]).ok).toBe(true)
     expect(bad([{ kind: 'door', at: [0, 0, 0], tag: 'gate' }]).ok).toBe(true)
+  })
+
+  it('warns but does not reject invalid optional part colors', () => {
+    const res = validateGameDoc({
+      ...minimal(),
+      parts: [
+        { kind: 'part', at: [0, 0, 0], size: [1, 1, 1], color: 'red' },
+        { kind: 'label', at: [0, 2, 0], text: 'hi', color: '#fff' },
+      ],
+    })
+    expect(res.ok).toBe(true)
+    expect(res.warnings.join('\n')).toMatch(/parts\[0\]: color "red" should be #rrggbb/)
+    expect(res.warnings.join('\n')).toMatch(/parts\[1\]: color "#fff" should be #rrggbb/)
+  })
+
+  it('does not warn on valid six-digit optional part colors', () => {
+    const res = validateGameDoc({
+      ...minimal(),
+      parts: [
+        { kind: 'part', at: [0, 0, 0], size: [1, 1, 1], color: '#ffffff' },
+        { kind: 'portal', at: [0, 1, 0], target: 'home', color: '#8a5cff' },
+      ],
+    })
+    expect(res.ok).toBe(true)
+    expect(res.warnings).toEqual([])
   })
 
   describe('vehicle parts', () => {
@@ -353,7 +407,7 @@ describe('validateGameDoc — custom weapons', () => {
       ...minimal(),
       weapons: [{
         id: 'super-rail', name: 'Super Rail', kind: 'hitscan', damage: 90, fireRate: 0.8,
-        icon: '🎯', pellets: 1, spread: 0, range: 300, beamColor: '#fff', beamWidth: 0.04,
+        icon: '🎯', pellets: 1, spread: 0, range: 300, beamColor: '#ffffff', beamWidth: 0.04,
         zoomFov: 20, ammoMax: 12, ammoPickup: 4, sound: 'sniper',
       }],
     })
@@ -364,9 +418,25 @@ describe('validateGameDoc — custom weapons', () => {
   it('accepts a projectile sub-object within range', () => {
     const res = validateGameDoc({
       ...minimal(),
-      weapons: [{ ...validWeapon(), projectile: { speed: 40, radius: 0.16, color: '#5f5', gravity: -14, splash: 4, life: 2 } }],
+      weapons: [{ ...validWeapon(), projectile: { speed: 40, radius: 0.16, color: '#55ff55', gravity: -14, splash: 4, life: 2 } }],
     })
     expect(res.ok).toBe(true)
+    expect(res.warnings).toEqual([])
+  })
+
+  it('warns but does not reject invalid weapon colors', () => {
+    const res = validateGameDoc({
+      ...minimal(),
+      weapons: [{
+        ...validWeapon(),
+        kind: 'projectile',
+        beamColor: 'cyan',
+        projectile: { speed: 40, radius: 0.16, color: '#5f5' },
+      }],
+    })
+    expect(res.ok).toBe(true)
+    expect(res.warnings.join('\n')).toMatch(/weapons\[0\]: beamColor "cyan" should be #rrggbb/)
+    expect(res.warnings.join('\n')).toMatch(/weapons\[0\]\.projectile: color "#5f5" should be #rrggbb/)
   })
 
   it('enforces required weapon fields', () => {
